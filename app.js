@@ -99,32 +99,59 @@ document.getElementById('add-game-btn').onclick = () => {
     reader.readAsDataURL(fileInput.files[0]);
 };
 
-// THE FIX FOR CLOAKING: Robust about:blank injector
-document.getElementById('cloak-btn').onclick = async () => {
+document.getElementById('cloak-btn').onclick = () => {
     if (!currentGame) return alert("Select a game first!");
 
+    // 1. Open a new window that is strictly about:blank
     const win = window.open('about:blank', '_blank');
-    if (!win) return alert("Pop-up Blocked! Allow pop-ups to use Cloaker.");
+    if (!win) return alert("Pop-up Blocked! Please allow pop-ups to use Cloaker.");
 
-    let gameHTML = "";
+    // 2. Prepare the game source
+    let gameSrc = "";
     if (currentGame.type === 'file') {
-        gameHTML = atob(currentGame.content.split(',')[1]);
+        // For local files, we create a Blob URL to ensure the game 
+        // stays connected to your site's saving data.
+        const base64Data = currentGame.content.split(',')[1];
+        const binary = atob(base64Data);
+        const array = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) array[i] = binary.charCodeAt(i);
+        const blob = new Blob([array], { type: 'text/html' });
+        gameSrc = URL.createObjectURL(blob);
     } else {
-        gameHTML = `<iframe src="${currentGame.url}" style="width:100%;height:100%;border:none;"></iframe>`;
+        gameSrc = currentGame.url;
     }
 
-    win.document.write(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>My Drive - Google Drive</title>
-            <link rel="icon" type="image/x-icon" href="https://ssl.gstatic.com/images/branding/product/1x/drive_2020q4_32dp.png">
-            <style>body,html{margin:0;padding:0;height:100%;overflow:hidden;background:#000;}</style>
-        </head>
-        <body>${currentGame.type === 'file' ? gameHTML : gameHTML}</body>
-        </html>
-    `);
-    win.document.close();
+    // 3. Set the new window's appearance (Google Drive style)
+    win.document.title = 'My Drive - Google Drive';
+    
+    // Add the Google Drive Favicon
+    const link = win.document.createElement('link');
+    link.rel = 'icon';
+    link.type = 'image/x-icon';
+    link.href = 'https://ssl.gstatic.com/images/branding/product/1x/drive_2020q4_32dp.png';
+    win.document.head.appendChild(link);
+
+    // 4. Create and inject the Iframe
+    // This is the key part: the window stays on about:blank while the game runs inside.
+    const iframe = win.document.createElement('iframe');
+    const style = iframe.style;
+    style.position = 'fixed';
+    style.top = '0';
+    style.left = '0';
+    style.bottom = '0';
+    style.right = '0';
+    style.width = '100%';
+    style.height = '100%';
+    style.border = 'none';
+    style.margin = '0';
+    style.padding = '0';
+    style.overflow = 'hidden';
+    style.backgroundColor = '#000';
+    
+    iframe.src = gameSrc;
+    win.document.body.appendChild(iframe);
+
+    // 5. Redirect the original site to Google (The "Evidence Wipe")
     window.location.replace("https://www.google.com");
 };
 
