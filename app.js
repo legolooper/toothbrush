@@ -109,7 +109,7 @@ document.getElementById('cloak-btn').onclick = async () => {
         </html>
     `);
     win.document.close();
-    window.location.replace("https://classroom.google.com");
+    window.location.replace("https://launchpad.classlink.com/forsyth");
 };
 
 // Backup and Restore
