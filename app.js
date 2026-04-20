@@ -152,7 +152,8 @@ document.getElementById('cloak-btn').onclick = () => {
     win.document.body.appendChild(iframe);
 
     // 5. Redirect the original site to Google (The "Evidence Wipe")
-    window.location.replace("https://www.google.com");
+    window.open('about:blank', '_self');
+window.close();
 };
 
 // Backup and Restore
