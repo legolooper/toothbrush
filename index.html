@@ -3,24 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Unblocked Games</title>
+    <title>Toothbrush</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <header>
-    <h1>Toothbrush</h1>
-    
-    <nav class="top-nav">
-        <!-- "Play Games" has been removed -->
-        <a href="pdf-stash.html" class="nav-btn">Stash</a>
-    </nav>
+    <h1 onclick="window.location.href='index.html'" style="cursor:pointer">Toothbrush</h1>
 
     <div class="controls">
-        <button id="cloak-btn" class="save-btn" style="background-color: #E91E63;">Cloak</button>
+        <!-- Pink Button -->
+        <button id="cloak-btn" class="save-btn" style="background-color: #E91E63;">Fullscreen</button>
+        
+        <!-- NEW: Dark Orange Stash Button (Moved here) -->
+        <button onclick="window.location.href='pdf-stash.html'" class="save-btn" style="background-color: #F57C00;">Stash</button>
         
         <!-- Blue Help Button -->
         <button onclick="window.location.href='help.html'" class="save-btn" style="background-color: #2196F3;">Help</button>
         
+        <!-- Green Backup/Restore Buttons -->
         <button id="export-btn" class="save-btn">Backup</button>
         <input type="file" id="import-btn" accept=".json" style="display:none">
         <button onclick="document.getElementById('import-btn').click()" class="save-btn">Restore</button>
