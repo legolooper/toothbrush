@@ -8,7 +8,9 @@
 </head>
 <body>
     <header>
-        <h1 onclick="location.href='index.html'" style="cursor:pointer">Toothbrush</h1>
+        <h1 onclick="location.href='index.html'">
+    Toothbrush <span id="splash-text"></span>
+</h1>
         
         <nav class="top-nav">
         </nav>
@@ -43,7 +45,11 @@
         </aside>
         
         <section class="game-container">
-            <iframe id="game-frame" name="game-frame" title="Game Window"></iframe>
+            <!-- Replace your iframe with this -->
+<iframe id="game-frame" name="game-frame" 
+    sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals" 
+    allow="allow-storage-access-by-user-activation; storage-access"
+    title="Game Window"></iframe>
         </section>
     </main>
 

@@ -86,10 +86,21 @@ function loadGame(game) {
     const frame = document.getElementById('game-frame');
     
     if (game.type === 'file') {
-        // Decode base64 and inject into iframe to keep saves on this domain
         const base64Data = game.content.split(',')[1];
-        const htmlContent = atob(base64Data);
-        frame.srcdoc = htmlContent;
+        let htmlContent = atob(base64Data);
+
+        // This script is injected into the game to ensure it stays "awake" 
+        // and uses the main site's storage bucket
+        const persistenceScript = `
+            <script>
+                console.log("Persistence Layer Active");
+                // Ensure localStorage is accessible
+                try { window.localStorage.setItem('test', '1'); } catch(e) { console.error("Storage blocked"); }
+            </script>
+        `;
+        
+        // Inject script at the start of the game code
+        frame.srcdoc = persistenceScript + htmlContent;
     } else {
         frame.removeAttribute('srcdoc');
         frame.src = game.url;
@@ -200,3 +211,120 @@ document.getElementById('import-btn').onchange = (e) => {
 
 // Start the site
 loadGames();
+
+const splashes = [
+    "\"Assisted by Jayden!\"",
+    "\"No, please don't close my ta-\"",
+    "\"Wait, wait, I was about to finish the level!\"",
+    "\"Prompted to perfection.\"",
+    "\"ALT+F4: The ultimate speedrun tactic.\"",
+    "\"My AI solved the math, I solved the level.\"",
+    "\"High scores > GPA.\"",
+    "\"Is it lag, or just the school WiFi?\"",
+    "\"The teacher is coming, hit the Pink button!\"",
+    "\"Database authorized.\"",
+    "\"Saving your progress... hopefully.\"",
+    "\"Not a bug, it's a feature.\"",
+    "\"Llama-3 made me do it.\"",
+    "\"Powered by pure procrastination.\"",
+    "\"100% human-ish.\"",
+    "\"Linewize can't see this.\"",
+    "\"The ultimate study break.\"",
+    "\"Just one more level before the bell.\"",
+    "\"0% AI hallucinations, 100% gaming.\"",
+    "\"Your high score is in the database.\"",
+    "\"Strictly for educational purposes...\"",
+    "\"Does this count as computer science?\"",
+    "\"Bypassing the boredom.\"",
+    "\"Infinite storage, finite time.\"",
+    "\"Don't forget to backup!\"",
+    "\"Restoring sanity, one game at a time.\"",
+    "\"Calculated risks and heavy prompts.\"",
+    "\"The AI knows the way.\"",
+    "\"More tabs, more problems.\"",
+    "\"Stealth mode engaged.\"",
+    "\"Drive Mad? More like Drive Focused.\"",
+    "\"Everything is unblocked if you try hard enough.\"",
+    "\"Learning to code by playing games.\"",
+    "\"Browser-based bliss.\"",
+    "\"The stash is never empty.\"",
+    "\"Level 99 Procrastinator.\"",
+    "\"Prompt: 'Make me better at this game'.\"",
+    "\"Error 404: Homework not found.\"",
+    "\"Check your permissions.\"",
+    "\"IndexedDB is my best friend.\"",
+    "\"About:blank? Nothing to see here.\"",
+    "\"The code is clean, the high score is not.\"",
+    "\"Speedrunning through the semester.\"",
+    "\"Logic applied, levels cleared.\"",
+    "\"The AI said I should take a break.\"",
+    "\"One file to rule them all.\"",
+    "\"It's basically a digital library.\"",
+    "\"A student's best kept secret.\"",
+    "\"Don't close the lid yet!\"",
+    "\"Frames per second > words per minute.\"",
+    "\"GPT-4o approved.\"",
+    "\"Your progress is persistent.\"",
+    "\"Toothbrush Tutorial is mandatory reading.\"",
+    "\"The sidebar of secrets.\"",
+    "\"Cloak active. Icons changed.\"",
+    "\"Memory leak? Never heard of her.\"",
+    "\"HTML5: The future of study hall.\"",
+    "\"Wait, did I save?\"",
+    "\"The AI is my co-pilot.\"",
+    "\"Simulating success.\"",
+    "\"Pixel-perfect procrastination.\"",
+    "\"Unblocked and unbothered.\"",
+    "\"School computers are just gaming rigs in disguise.\"",
+    "\"Loading a better reality.\"",
+    "\"The Cloak button is your shield.\"",
+    "\"Database synced.\"",
+    "\"One prompt away from victory.\"",
+    "\"Gaming is a soft skill.\"",
+    "\"The math adds up.\"",
+    "\"Why study when you can speedrun?\"",
+    "\"Securely can't see about:blank.\"",
+    "\"A collection of digital treasures.\"",
+    "\"AI: 'I suggest playing 2048'.\"",
+    "\"Minimalist interface, maximalist fun.\"",
+    "\"The stash is legendary.\"",
+    "\"Your secret is safe with the browser.\"",
+    "\"Click to continue.\"",
+    "\"The bell doesn't dismiss you, I do.\"",
+    "\"Context window: Infinite.\"",
+    "\"The PDF is the manual.\"",
+    "\"Optimized for low-end Chromebooks.\"",
+    "\"Your saves are in the cloud-ish.\"",
+    "\"Toothbrush: The home of the bored.\"",
+    "\"Synthesizing high scores.\"",
+    "\"The AI isn't cheating, it's 'assisting'.\"",
+    "\"Save states are a human right.\"",
+    "\"Don't let the tab timeout!\"",
+    "\"The perfect distraction.\"",
+    "\"Bypassing the mundane.\"",
+    "\"Strictly local storage.\"",
+    "\"The UI is polished, the games are not.\"",
+    "\"A masterclass in distraction.\"",
+    "\"Wait, I actually need to solve this.\"",
+    "\"The AI wrote the code, you play the game.\"",
+    "\"Everything is fine.\"",
+    "\"The final boss of the school year.\"",
+    "\"Your progress is our priority.\"",
+    "\"Hardcoded for fun.\"",
+    "\"The stash is ultimate for a reason.\"",
+    "\"READ the TUTORIAL!\""
+	"\"Dead.\""
+	"\"Wow. Just... wow.\""
+	"\"Honorable mention: Ctrl+W.\""
+];
+
+function setSplash() {
+    const splashElement = document.getElementById('splash-text');
+    if (splashElement) {
+        const randomSplash = splashes[Math.floor(Math.random() * splashes.length)];
+        splashElement.textContent = randomSplash;
+    }
+}
+
+// Run this when the page loads
+window.addEventListener('DOMContentLoaded', setSplash);
