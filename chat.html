@@ -104,17 +104,30 @@
     </main>
 
     <script>
-// --- Identity & State ---
+// --- Identity & Configuration ---
 const colorMap = {"#F44336":"Crimson","#E91E63":"Rose","#9C27B0":"Amethyst","#673AB7":"Indigo","#2196F3":"Azure","#00BCD4":"Cyan","#009688":"Teal","#4CAF50":"Leaf","#8BC34A":"Lime","#FFEB3B":"Gold","#FF9800":"Orange","#795548":"Cedar","#607D8B":"Steel","#636B2F":"Olive","#D4E157":"Pear","#26C6DA":"Sky"};
 const colors = Object.keys(colorMap);
 let myColor = colors[Math.floor(Math.random()*colors.length)];
 let myName = colorMap[myColor] + "_" + Math.floor(Math.random()*999);
 
 let peer = null, conn = null, isHost = false, connections = [];
-const PREFIX = "tb-chat-v4-"; // Incremented version to clear old stale connections
-const peerConfig = { config: { 'iceServers': [{ url: 'stun:stun.l.google.com:19302' }] } };
+const PREFIX = "tb-v5-"; // Incremented version to clear all old network paths
 
-// --- UI Logic ---
+// Extended STUN server list to punch through school firewalls
+const peerConfig = {
+    config: {
+        'iceServers': [
+            { url: 'stun:stun.l.google.com:19302' },
+            { url: 'stun:stun1.l.google.com:19302' },
+            { url: 'stun:stun2.l.google.com:19302' },
+            { url: 'stun:stun3.l.google.com:19302' },
+            { url: 'stun:stun4.l.google.com:19302' }
+        ]
+    },
+    debug: 1 // Only logs critical errors
+};
+
+// --- UI Actions ---
 document.getElementById('open-host-panel').onclick = () => document.getElementById('host-modal').style.display='flex';
 
 document.getElementById('start-host-btn').onclick = () => {
@@ -134,78 +147,86 @@ document.getElementById('join-btn').onclick = () => {
     }
 };
 
-// --- PeerJS Core ---
+// --- PeerJS Logic ---
 function startSession(pin, roomName, joinPin) {
-    const peerId = isHost ? PREFIX + pin : null;
-    if (peer) peer.destroy(); // Cleanup old peer if it exists
+    if (peer) peer.destroy();
     
+    // If hosting, we claim the PIN. If joining, we get a random ID.
+    const peerId = isHost ? PREFIX + pin : null;
     peer = new Peer(peerId, peerConfig);
 
-    peer.on('open', () => {
+    peer.on('open', (id) => {
+        console.log("Connected to Signaling Server with ID:", id);
         if (isHost) {
             setupRoomUI(roomName, pin);
         } else {
-            connectToHost(joinPin);
+            // Joiner now attempts to find the Host
+            connectToHost(document.getElementById('pin-entry').value.trim());
         }
     });
 
+    // Handle Incoming Connections (Host Only)
     peer.on('connection', (c) => {
-        if (isHost) {
-            c.on('open', () => {
-                // Check if this connection is already in our list
-                if(!connections.find(existing => existing.peer === c.peer)) {
+        c.on('open', () => {
+            if (isHost) {
+                // Prevent duplicate connection entries
+                if (!connections.find(existing => existing.peer === c.peer)) {
                     connections.push(c);
                 }
                 c.send({type: 'room-info', name: roomName, pin: pin});
-            });
-            // Attach listener ONLY ONCE
-            c.on('data', (data) => handleData(data, c));
-            
-            c.on('close', () => {
-                connections = connections.filter(conn => conn.peer !== c.peer);
-            });
-        }
+            }
+        });
+        c.on('data', (data) => handleData(data, c));
+        c.on('close', () => {
+            connections = connections.filter(item => item.peer !== c.peer);
+        });
     });
 
     peer.on('error', (err) => {
-        if(err.type === 'unavailable-id') alert("PIN already in use!");
-        else showPinError();
+        console.error("PeerJS Error Type:", err.type);
+        if (err.type === 'unavailable-id') {
+            alert("This PIN is already active elsewhere. Please use a different PIN.");
+        } else if (err.type === 'peer-unavailable') {
+            showPinError(); // Correctly identifies that the room doesn't exist
+        } else {
+            console.log("Network error, but trying to continue...");
+        }
     });
 }
 
 function connectToHost(pin) {
-    conn = peer.connect(PREFIX + pin);
-    
-    // Reset data listeners to prevent duplicates
+    console.log("Attempting to connect to room:", pin);
+    conn = peer.connect(PREFIX + pin, { reliable: true });
+
     conn.on('open', () => {
+        console.log("Successfully bridged to Host");
         conn.send({type: 'join', name: myName, color: myColor});
     });
 
     conn.on('data', (data) => handleData(data, conn));
     
+    // Fail check
     setTimeout(() => {
-        if (!conn.open) { showPinError(); }
-    }, 5000);
+        if (!conn.open) { 
+            showPinError(); 
+            if (peer) peer.destroy();
+        }
+    }, 6000);
 }
 
 function handleData(data, sender) {
-    // 1. Handle Chat Messages
+    // 1. Chat Messages
     if (data.type === 'msg') {
         appendMessage(data.name, data.color, data.text);
-        
-        // RELAY LOGIC: If the Host receives a message from a Guest, 
-        // the Host must send it to everyone else.
+        // RELAY: Host sends guest messages to everyone else
         if (isHost) {
             connections.forEach(c => {
-                // Send to every guest EXCEPT the one who sent it
-                if (c.open && c.peer !== sender.peer) {
-                    c.send(data);
-                }
+                if (c.open && c.peer !== sender.peer) c.send(data);
             });
         }
     }
 
-    // 2. Handle System Commands
+    // 2. System Sync
     if (data.type === 'room-info') setupRoomUI(data.name, data.pin);
     if (data.type === 'disband') { alert("Host disbanded the room"); location.reload(); }
     if (data.type === 'kick') { alert("You have been kicked"); location.reload(); }
@@ -213,7 +234,7 @@ function handleData(data, sender) {
     if (isHost && data.type === 'join') {
         sender.metadata = { name: data.name };
         appendMessage("System", "#777", data.name + " joined.");
-        // Tell everyone else someone joined
+        // Relay the "joined" message to others
         connections.forEach(c => {
             if (c.open && c.peer !== sender.peer) {
                 c.send({type: 'msg', name: "System", color: "#777", text: data.name + " joined."});
@@ -222,24 +243,32 @@ function handleData(data, sender) {
     }
 }
 
+// --- Interaction Logic ---
 function sendMessage() {
     const input = document.getElementById('msg-input');
     const val = input.value.trim();
     if(!val) return;
 
-    // Show the message on your own screen
     appendMessage(myName, myColor, val);
-    
     const packet = {type: 'msg', name: myName, color: myColor, text: val};
     
-    if(isHost) {
-        // Host sends to all guests
+    if (isHost) {
         connections.forEach(c => { if(c.open) c.send(packet); });
     } else {
-        // Guest sends only to the Host
         if(conn && conn.open) conn.send(packet);
     }
     input.value = "";
+}
+
+function kickUser(targetName) {
+    if(!isHost || targetName === myName || targetName === "System") return;
+    if(confirm("Kick " + targetName + "?")) {
+        const target = connections.find(c => c.metadata && c.metadata.name === targetName);
+        if(target) {
+            target.send({type: 'kick'});
+            appendMessage("System", "#777", targetName + " kicked.");
+        }
+    }
 }
 
 // --- UI Helpers ---
@@ -255,6 +284,7 @@ function setupRoomUI(name, pin) {
 
 function appendMessage(name, color, text) {
     const area = document.getElementById('messages');
+    if (!area) return;
     const div = document.createElement('div');
     div.className = "chat-msg";
     div.style.borderColor = color;
@@ -264,36 +294,23 @@ function appendMessage(name, color, text) {
     area.scrollTop = area.scrollHeight;
 }
 
-document.getElementById('send-btn').onclick = sendMessage;
-document.getElementById('msg-input').onkeypress = (e) => { if(e.key === 'Enter') sendMessage(); };
-
-document.getElementById('disband-btn').onclick = () => {
-    if(confirm("Disband room?")) {
-        connections.forEach(c => { if(c.open) c.send({type: 'disband'}); });
-        setTimeout(() => location.reload(), 500);
-    }
-};
-
 function showPinError() {
     document.getElementById('pin-entry').style.color = "#f44336";
     document.getElementById('pin-error').style.display = "block";
 }
 
+document.getElementById('send-btn').onclick = sendMessage;
+document.getElementById('msg-input').onkeypress = (e) => { if(e.key === 'Enter') sendMessage(); };
+document.getElementById('disband-btn').onclick = () => {
+    if(confirm("Disband?")) {
+        connections.forEach(c => { if(c.open) c.send({type: 'disband'}); });
+        setTimeout(() => location.reload(), 500);
+    }
+};
 document.getElementById('pin-entry').oninput = () => {
     document.getElementById('pin-entry').style.color = "white";
     document.getElementById('pin-error').style.display = "none";
 };
-
-function kickUser(targetName) {
-    if(!isHost || targetName === myName || targetName === "System") return;
-    if(confirm("Kick " + targetName + "?")) {
-        const target = connections.find(c => c.metadata && c.metadata.name === targetName);
-        if(target) {
-            target.send({type: 'kick'});
-            appendMessage("System", "#777", targetName + " kicked.");
-        }
-    }
-}
     </script>
 </body>
 </html>
