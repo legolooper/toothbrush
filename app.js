@@ -30,7 +30,11 @@ function renderGameList() {
     list.innerHTML = '';
     games.forEach((game, i) => {
         const li = document.createElement('li');
+        
+        // Apply custom colors based on ID
         if (game.id === "tutorial") li.classList.add('tutorial-item');
+        if (game.id === "ugs-stash") li.classList.add('ugs-item');
+        
         const t = document.createElement('span');
         t.textContent = game.title; t.style.flex = "1";
         t.onclick = () => loadGame(game);

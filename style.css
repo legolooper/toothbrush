@@ -56,7 +56,13 @@ main { display: flex; flex: 1; overflow: hidden; }
     transition: all 0.1s;
 }
 
-.tutorial-item { background-color: #0D47A1 !important; border: 1px solid #1565C0 !important; }
+/* Tutorial Button (Green) */
+.tutorial-item { background-color: #5FC772 !important; border: 1px solid #4CAF50 !important; color: white !important; font-weight: bold; }
+.tutorial-item:hover { background-color: #4CAF50 !important; }
+
+/* UGS Master File Button (Blue) */
+.ugs-item { background-color: #1f478b !important; border: 1px solid #153466 !important; color: white !important; font-weight: bold; }
+.ugs-item:hover { background-color: #153466 !important; }
 
 .trash-btn { opacity: 0; transition: opacity 0.2s; font-size: 18px; padding-left: 10px; }
 li:hover .trash-btn { opacity: 1; }
