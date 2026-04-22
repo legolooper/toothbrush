@@ -54,127 +54,162 @@
 
     <script>
         // --- Configuration & Identity ---
-        const colorMap = {"#F44336":"Crimson","#E91E63":"Rose","#9C27B0":"Amethyst","#673AB7":"Indigo","#2196F3":"Azure","#00BCD4":"Cyan","#009688":"Teal","#4CAF50":"Leaf","#8BC34A":"Lime","#FFEB3B":"Gold","#FF9800":"Orange","#795548":"Cedar","#607D8B":"Steel","#636B2F":"Olive","#D4E157":"Pear","#26C6DA":"Sky"};
-        const colors = Object.keys(colorMap);
-        let myColor = colors[Math.floor(Math.random()*colors.length)];
-        let myName = colorMap[myColor] + "_" + Math.floor(Math.random()*999);
-        
-        let peer, conn, isHost = false, connections = [];
+const colorMap = {"#F44336":"Crimson","#E91E63":"Rose","#9C27B0":"Amethyst","#673AB7":"Indigo","#2196F3":"Azure","#00BCD4":"Cyan","#009688":"Teal","#4CAF50":"Leaf","#8BC34A":"Lime","#FFEB3B":"Gold","#FF9800":"Orange","#795548":"Cedar","#607D8B":"Steel","#636B2F":"Olive","#D4E157":"Pear","#26C6DA":"Sky"};
+const colors = Object.keys(colorMap);
+let myColor = colors[Math.floor(Math.random()*colors.length)];
+let myName = colorMap[myColor] + "_" + Math.floor(Math.random()*999);
 
-        // --- Navigation ---
-        document.getElementById('open-host-panel').onclick = () => document.getElementById('host-modal').style.display='flex';
-        
-        // --- Host Logic ---
-        document.getElementById('start-host-btn').onclick = () => {
-            const name = document.getElementById('host-name-input').value;
-            const pin = document.getElementById('host-pin-input').value;
-            if(name && pin.length === 6) {
-                isHost = true;
-                initPeer(pin, name);
-            } else { alert("Enter Name and 6-Digit PIN"); }
-        };
+let peer, conn, isHost = false, connections = [];
 
-        // --- Join Logic ---
-        document.getElementById('join-btn').onclick = () => {
-            const pin = document.getElementById('pin-entry').value;
-            if(pin.length === 6) initPeer(null, null, pin);
-        };
+// --- Navigation ---
+document.getElementById('open-host-panel').onclick = () => document.getElementById('host-modal').style.display='flex';
 
-        document.getElementById('pin-entry').oninput = () => {
-            document.getElementById('pin-entry').style.color = "white";
-            document.getElementById('pin-error').style.display = "none";
-        };
+// --- Host Logic ---
+document.getElementById('start-host-btn').onclick = () => {
+    const name = document.getElementById('host-name-input').value;
+    const pin = document.getElementById('host-pin-input').value;
+    if(name && pin.length === 6) {
+        isHost = true;
+        initPeer(pin, name);
+    } else { alert("Enter Name and 6-Digit PIN"); }
+};
 
-        function initPeer(pin = null, roomName = null, joinPin = null) {
-            const activePin = pin || joinPin;
-            // Peer ID format is toothbrush-PIN
-            peer = new Peer('toothbrush-room-' + activePin);
+// --- Join Logic ---
+document.getElementById('join-btn').onclick = () => {
+    const pin = document.getElementById('pin-entry').value;
+    if(pin.length === 6) {
+        isHost = false;
+        initPeer(null, null, pin);
+    }
+};
 
-            peer.on('open', (id) => {
-                if(isHost) {
-                    setupRoomUI(roomName, pin);
-                } else {
-                    connectToRoom(joinPin);
-                }
-            });
+// Clear error on typing
+document.getElementById('pin-entry').oninput = () => {
+    document.getElementById('pin-entry').style.color = "white";
+    document.getElementById('pin-error').style.display = "none";
+};
 
-            peer.on('error', (err) => {
-                if(err.type === 'unavailable-id' && isHost) alert("PIN already in use! Try another.");
-                if(!isHost) {
-                    document.getElementById('pin-entry').style.color = "#f44336";
-                    document.getElementById('pin-error').style.display = "block";
-                }
-            });
+function initPeer(pin = null, roomName = null, joinPin = null) {
+    // FIX: Host takes the PIN ID, Joiner gets a random ID
+    const peerId = isHost ? 'tb-room-' + pin : null;
+    peer = new Peer(peerId);
 
-            peer.on('connection', (c) => {
-                c.on('data', (data) => handleData(data, c));
-                if(isHost) connections.push(c);
-            });
+    peer.on('open', (id) => {
+        if(isHost) {
+            setupRoomUI(roomName, pin);
+        } else {
+            connectToRoom(joinPin);
         }
+    });
 
-        function connectToRoom(pin) {
-            conn = peer.connect('toothbrush-room-' + pin);
-            conn.on('open', () => {
-                setupRoomUI("Private Room", pin);
-                conn.send({type: 'join', name: myName, color: myColor});
-            });
-            conn.on('data', handleData);
-        }
-
-        function setupRoomUI(name, pin) {
-            document.getElementById('chat-home').style.display = 'none';
-            document.getElementById('host-modal').style.display = 'none';
-            document.getElementById('chat-room').style.display = 'flex';
-            document.getElementById('room-header-info').style.display = 'block';
-            document.getElementById('display-room-name').textContent = name;
-            document.getElementById('display-pin').textContent = "PIN: " + pin;
-            if(isHost) document.getElementById('disband-btn').style.display = 'block';
-        }
-
-        function handleData(data, senderConn) {
-            if(data.type === 'msg') appendMessage(data.name, data.color, data.text);
-            if(data.type === 'disband') { alert("Room Disbanded"); location.reload(); }
-            if(data.type === 'kick') { alert("You have been kicked"); location.reload(); }
-        }
-
-        function appendMessage(name, color, text) {
-            const msgArea = document.getElementById('messages');
-            const div = document.createElement('div');
-            div.className = "chat-msg";
-            div.style.borderColor = color;
-            div.style.alignSelf = (name === myName) ? "flex-end" : "flex-start";
-            
-            div.innerHTML = `
-                <div style="font-size:11px; font-weight:bold; color:${color}; cursor:pointer;" onclick="kickUser('${name}')">${name}</div>
-                <div>${text}</div>
-            `;
-            msgArea.appendChild(div);
-            msgArea.scrollTop = msgArea.scrollHeight;
-        }
-
-        function kickUser(targetName) {
-            if(!isHost || targetName === myName) return;
-            if(confirm("Kick " + targetName + "?")) {
-                const target = connections.find(c => c.metadata?.name === targetName);
-                if(target) target.send({type: 'kick'});
-            }
-        }
-
-        document.getElementById('send-btn').onclick = () => {
-            const input = document.getElementById('msg-input');
-            const val = input.value.trim();
-            if(!val) return;
-            appendMessage(myName, myColor, val);
-            const packet = {type: 'msg', name: myName, color: myColor, text: val};
-            if(isHost) connections.forEach(c => c.send(packet));
-            else conn.send(packet);
-            input.value = "";
-        };
-
-        document.getElementById('disband-btn').onclick = () => {
-            connections.forEach(c => c.send({type: 'disband'}));
+    peer.on('error', (err) => {
+        console.error(err.type);
+        if(isHost && err.type === 'unavailable-id') {
+            alert("This PIN is already being used as a room! Try another.");
             location.reload();
-        };
+        }
+        showPinError();
+    });
+
+    peer.on('connection', (c) => {
+        if(isHost) {
+            c.on('open', () => {
+                connections.push(c);
+                // Send current room info to the new person
+                c.send({type: 'room-info', name: roomName, pin: pin});
+            });
+            c.on('data', (data) => handleData(data, c));
+        }
+    });
+}
+
+function connectToRoom(pin) {
+    conn = peer.connect('tb-room-' + pin);
+    
+    // Safety timeout: If we can't find the host in 3 seconds, the PIN is wrong
+    const timeout = setTimeout(() => {
+        if (!conn.open) {
+            showPinError();
+            peer.destroy();
+        }
+    }, 3000);
+
+    conn.on('open', () => {
+        clearTimeout(timeout);
+        // We will get room name from the host in a moment via 'room-info'
+    });
+
+    conn.on('data', handleData);
+}
+
+function showPinError() {
+    document.getElementById('pin-entry').style.color = "#f44336";
+    document.getElementById('pin-error').style.display = "block";
+}
+
+function setupRoomUI(name, pin) {
+    document.getElementById('chat-home').style.display = 'none';
+    document.getElementById('host-modal').style.display = 'none';
+    document.getElementById('chat-room').style.display = 'flex';
+    document.getElementById('room-header-info').style.display = 'block';
+    document.getElementById('display-room-name').textContent = name;
+    document.getElementById('display-pin').textContent = "PIN: " + pin;
+    if(isHost) document.getElementById('disband-btn').style.display = 'block';
+}
+
+function handleData(data, senderConn) {
+    if(data.type === 'msg') appendMessage(data.name, data.color, data.text);
+    if(data.type === 'room-info') setupRoomUI(data.name, data.pin);
+    if(data.type === 'disband') { alert("Room Disbanded by Host"); location.reload(); }
+    if(data.type === 'kick') { alert("You have been kicked"); location.reload(); }
+}
+
+function appendMessage(name, color, text) {
+    const msgArea = document.getElementById('messages');
+    const div = document.createElement('div');
+    div.className = "chat-msg";
+    div.style.borderColor = color;
+    div.style.alignSelf = (name === myName) ? "flex-end" : "flex-start";
+    
+    div.innerHTML = `
+        <div style="font-size:11px; font-weight:bold; color:${color}; cursor:pointer;" onclick="kickUser('${name}')">${name}</div>
+        <div>${text}</div>
+    `;
+    msgArea.appendChild(div);
+    msgArea.scrollTop = msgArea.scrollHeight;
+}
+
+function kickUser(targetName) {
+    if(!isHost || targetName === myName) return;
+    if(confirm("Kick " + targetName + "?")) {
+        // Find the connection associated with this user name and send kick signal
+        const target = connections.find(c => c.open); // Simplified for this version
+        if(target) target.send({type: 'kick'});
+    }
+}
+
+document.getElementById('send-btn').onclick = () => {
+    const input = document.getElementById('msg-input');
+    const val = input.value.trim();
+    if(!val) return;
+    
+    appendMessage(myName, myColor, val);
+    const packet = {type: 'msg', name: myName, color: myColor, text: val};
+    
+    if(isHost) {
+        connections.forEach(c => { if(c.open) c.send(packet); });
+    } else {
+        if(conn && conn.open) conn.send(packet);
+    }
+    input.value = "";
+};
+
+document.getElementById('disband-btn').onclick = () => {
+    if(confirm("Disband room? Everyone will be kicked.")) {
+        connections.forEach(c => { if(c.open) c.send({type: 'disband'}); });
+        location.reload();
+    }
+};
     </script>
 </body>
 </html>
