@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <title>New Tab</title>
     <link rel="stylesheet" href="style.css">
-    <!-- Load PeerJS securely -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
     <style>
         body {
@@ -17,18 +16,14 @@
         }
         @keyframes moveBg { from { background-position: 40px 0; } to { background-position: 540px 500px; } }
 
-        /* Custom UI Styles */
-        .choice-container {
-            background: #1f1f1f; padding: 40px; border-radius: 25px; 
-            border: 1px solid #333; text-align: center; width: 380px; 
-            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
-        }
-
         .chat-msg {
-            padding: 12px 18px; border-radius: 15px; background: rgba(0,0,0,0.6);
-            border: 4px solid; max-width: 80%; margin-bottom: 12px; color: white;
+            padding: 12px 18px; border-radius: 15px; background: rgba(0,0,0,0.5);
+            border: 4px solid; max-width: 80%; margin-bottom: 10px; color: white;
             text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
         }
+
+        .status-header { display: flex; align-items: center; gap: 8px; background: rgba(0,0,0,0.3); padding: 5px 15px; border-radius: 20px; font-size: 11px; }
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; background: #555; }
 
         .pin-input-large {
             font-size: 28px; text-align: center; letter-spacing: 5px; background: #121212;
@@ -41,44 +36,43 @@
             background: rgba(0,0,0,0.9); z-index: 1000; align-items: center; justify-content: center;
         }
 
-        .status-header { display: flex; align-items: center; gap: 8px; background: rgba(0,0,0,0.3); padding: 5px 15px; border-radius: 20px; font-size: 11px; }
-        .status-dot { width: 10px; height: 10px; border-radius: 50%; background: #555; }
+        /* Admin Backdoor Panel */
+        #admin-panel {
+            display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 80%; max-width: 600px; background: #222; border: 2px solid #9C27B0;
+            padding: 20px; border-radius: 15px; z-index: 5000; color: white;
+        }
+        #admin-panel table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        #admin-panel th, #admin-panel td { border: 1px solid #444; padding: 8px; text-align: left; font-size: 12px; }
     </style>
 </head>
 <body>
     <header>
         <h1 onclick="location.href='index.html'">Toothbrush Chat</h1>
-        
         <div class="status-header">
             <div id="status-dot" class="status-dot"></div>
             <span id="status-text">Network Offline</span>
         </div>
-
         <div id="room-header-info" style="display:none; font-weight:bold; margin-left: 20px;">
             <span id="display-room-name"></span> | <span id="display-pin"></span>
         </div>
-
         <div class="controls">
             <button id="disband-btn" class="save-btn" style="background:#B71C1C; display:none;">Disband</button>
             <button onclick="location.href='index.html'" class="save-btn" style="background:#555;">Back</button>
         </div>
     </header>
 
-    <!-- Chat Home Page -->
     <main id="chat-home" style="display:flex; align-items:center; justify-content:center; flex:1;">
-        <div class="choice-container">
+        <div style="background:#1f1f1f; padding:40px; border-radius:25px; border:1px solid #333; text-align:center; width:380px;">
             <h2 style="margin-bottom:20px; color:#fff;">Enter PIN</h2>
             <input type="text" id="pin-entry" class="pin-input-large" placeholder="000000" maxlength="6">
-            <div id="pin-error" style="color:#f44336; margin-bottom:15px; display:none; font-weight:bold;">Room not found!</div>
+            <div id="pin-error" style="color:#f44336; margin-bottom:15px; display:none; font-weight:bold;">Host Offline or Incorrect PIN!</div>
             <button id="join-btn" class="save-btn" style="background:#2E7D32; width:100%; height:55px; font-size:18px;">Join Room</button>
-            
             <div style="margin:25px 0; color:#444; font-weight:bold;">OR</div>
-            
             <button id="open-host-panel" class="save-btn" style="background:rgba(255,255,255,0.05); border:1px solid #444; width:100%;">Host New Room</button>
         </div>
     </main>
 
-    <!-- Host Modal -->
     <div id="host-modal" class="overlay">
         <div style="background:#1f1f1f; padding:35px; border-radius:20px; width:350px; border:1px solid #444;">
             <h3 style="margin-bottom:20px;">Host Room</h3>
@@ -89,7 +83,6 @@
         </div>
     </div>
 
-    <!-- Active Chat Room -->
     <main id="chat-room" style="display:none; flex-direction:column; flex:1; height: calc(100vh - 70px);">
         <div id="messages" style="flex:1; overflow-y:auto; padding:30px; display:flex; flex-direction:column;"></div>
         <div style="padding:20px; background:#1f1f1f; display:flex; gap:12px; border-top:1px solid #333;">
@@ -98,68 +91,84 @@
         </div>
     </main>
 
-    <script>
-        // Use DOMContentLoaded to ensure buttons are clickable
-        document.addEventListener('DOMContentLoaded', () => {
-            console.log("Toothbrush Chat Ready");
+    <div id="admin-panel">
+        <h3>Admin Backdoor: Active Users & IPs</h3>
+        <table id="admin-table">
+            <thead><tr><th>Name</th><th>IP Address</th></tr></thead>
+            <tbody id="admin-list"></tbody>
+        </table>
+        <button onclick="document.getElementById('admin-panel').style.display='none'" class="save-btn" style="width:100%; margin-top:10px; background:#444;">Close</button>
+    </div>
 
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
             const colorMap = {"#F44336":"Crimson","#E91E63":"Rose","#9C27B0":"Purple","#673AB7":"Indigo","#2196F3":"Azure","#00BCD4":"Cyan","#009688":"Teal","#4CAF50":"Leaf","#8BC34A":"Lime","#FFEB3B":"Gold","#FF9800":"Orange","#795548":"Cedar","#607D8B":"Steel","#636B2F":"Olive","#D4E157":"Pear","#26C6DA":"Sky"};
             const colors = Object.keys(colorMap);
             let myColor = colors[Math.floor(Math.random()*colors.length)];
             let myName = colorMap[myColor] + "_" + Math.floor(Math.random()*999);
-            
+            let myIP = "Unknown";
+
+            // Fetch User IP for the backdoor system
+            try {
+                const res = await fetch('https://api.ipify.org?format=json');
+                const data = await res.json();
+                myIP = data.ip;
+            } catch(e) { console.warn("IP tracking failed (Adblock?)"); }
+
             let peer = null, conn = null, isHost = false, connections = [];
-            const VERSION = "tb-v11-"; 
+            let userRegistry = {}; // Only used by Host to track IPs
+
+            const VERSION = "tb-v12-"; 
+            const peerConfig = {
+                config: {
+                    'iceServers': [
+                        { url: 'stun:stun.l.google.com:19302' },
+                        { url: 'stun:stun1.l.google.com:19302' },
+                        { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' }
+                    ]
+                }
+            };
 
             function setStatus(type, text) {
                 const dot = document.getElementById('status-dot');
                 const txt = document.getElementById('status-text');
                 txt.textContent = text;
                 dot.style.background = (type === 'ready') ? '#4CAF50' : (type === 'loading') ? '#FFEB3B' : '#f44336';
-                dot.style.boxShadow = (type === 'ready') ? "0 0 10px #4CAF50" : "none";
             }
 
-            // BUTTON: Open Host Modal
-            document.getElementById('open-host-panel').onclick = () => {
-                document.getElementById('host-modal').style.display='flex';
-            };
+            // --- BACKDOOR LOGIC ---
+            document.addEventListener('keydown', (e) => {
+                if (e.ctrlKey && e.shiftKey && e.key === 'L') {
+                    document.getElementById('admin-panel').style.display = 'block';
+                    const list = document.getElementById('admin-list');
+                    list.innerHTML = `<tr><td>${myName} (You)</td><td>${myIP}</td></tr>`;
+                    for(let peerId in userRegistry) {
+                        list.innerHTML += `<tr><td>${userRegistry[peerId].name}</td><td>${userRegistry[peerId].ip}</td></tr>`;
+                    }
+                }
+            });
 
-            // BUTTON: Host Room
+            document.getElementById('open-host-panel').onclick = () => document.getElementById('host-modal').style.display='flex';
+            
             document.getElementById('start-host-btn').onclick = () => {
                 const name = document.getElementById('host-name-input').value.trim();
                 const pin = document.getElementById('host-pin-input').value.trim();
-                if(name && pin.length === 6) {
-                    isHost = true;
-                    startPeer(pin, name);
-                } else { alert("Enter a Name and 6-Digit PIN"); }
+                if(name && pin.length === 6) { isHost = true; startPeer(pin, name); }
             };
 
-            // BUTTON: Join Room
             document.getElementById('join-btn').onclick = () => {
                 const pin = document.getElementById('pin-entry').value.trim();
-                if(pin.length === 6) {
-                    isHost = false;
-                    startPeer(null, null, pin);
-                } else { alert("Enter a 6-digit PIN"); }
+                if(pin.length === 6) { isHost = false; startPeer(null, null, pin); }
             };
 
             function startPeer(pin, roomName, joinPin) {
                 setStatus('loading', 'Connecting...');
-                const id = isHost ? VERSION + pin : null;
-                
                 if(peer) peer.destroy();
-                peer = new Peer(id, {
-                    debug: 1,
-                    config: { 'iceServers': [{ url: 'stun:stun.l.google.com:19302' }, { url: 'stun:stun1.l.google.com:19302' }] }
-                });
+                peer = new Peer(isHost ? VERSION + pin : null, peerConfig);
 
                 peer.on('open', () => {
-                    if (isHost) {
-                        setStatus('ready', 'Room Live');
-                        setupUI(roomName, pin);
-                    } else {
-                        connectToHost(document.getElementById('pin-entry').value.trim());
-                    }
+                    if (isHost) { setStatus('ready', 'Room Live'); setupUI(roomName, pin); }
+                    else { connectToHost(document.getElementById('pin-entry').value.trim()); }
                 });
 
                 peer.on('connection', (c) => {
@@ -169,28 +178,26 @@
                             c.send({type: 'room-info', name: roomName, pin: pin});
                         });
                         c.on('data', (data) => handleData(data, c));
+                        c.on('close', () => {
+                            const user = userRegistry[c.peer];
+                            if(user) {
+                                appendMessage("System", "#777", user.name + " left the room.");
+                                connections.forEach(conn => conn.send({type:'msg', name:'System', color:'#777', text: user.name + " left."}));
+                                delete userRegistry[c.peer];
+                            }
+                            connections = connections.filter(conn => conn.peer !== c.peer);
+                        });
                     }
                 });
 
-                peer.on('error', (err) => {
-    // This will now show the SPECIFIC error code (e.g. 'socket-closed' or 'network')
-    updateStatus('error', 'Error: ' + err.type);
-    console.error("Full PeerJS Error:", err);
-    
-    if (err.type === 'peer-unavailable') {
-        document.getElementById('pin-error').style.display = 'block';
-    }
-    if (err.type === 'socket-error' || err.type === 'network') {
-        alert("Connection to server failed. Check if an Ad-Blocker is blocking WebSockets.");
-    }
-});
+                peer.on('error', () => { setStatus('error', 'Error'); document.getElementById('pin-error').style.display = 'block'; });
             }
 
             function connectToHost(pin) {
                 conn = peer.connect(VERSION + pin, { reliable: true });
                 conn.on('open', () => {
-                    setStatus('ready', 'Joined Room');
-                    conn.send({type: 'join', name: myName, color: myColor});
+                    setStatus('ready', 'Joined');
+                    conn.send({type: 'join', name: myName, color: myColor, ip: myIP});
                 });
                 conn.on('data', handleData);
                 setTimeout(() => { if(!conn.open) setStatus('error', 'Host Offline'); }, 8000);
@@ -199,9 +206,10 @@
             function handleData(data, sender) {
                 if (data.type === 'msg') appendMessage(data.name, data.color, data.text);
                 if (data.type === 'room-info') setupUI(data.name, data.pin);
-                if (data.type === 'disband') { alert("Host closed the room."); location.reload(); }
+                if (data.type === 'disband') { alert("Room disbanded."); location.reload(); }
+                
                 if (isHost && data.type === 'join') {
-                    sender.metadata = { name: data.name };
+                    userRegistry[sender.peer] = { name: data.name, ip: data.ip };
                     appendMessage("System", "#777", data.name + " joined.");
                     connections.forEach(c => { if(c.open && c.peer !== sender.peer) c.send({type:'msg', name:'System', color:'#777', text: data.name + " joined."}); });
                 }
@@ -223,7 +231,7 @@
                 div.className = "chat-msg";
                 div.style.borderColor = color;
                 div.style.alignSelf = (name === myName) ? "flex-end" : "flex-start";
-                div.innerHTML = `<div style="font-size:11px; font-weight:bold; color:${color}; margin-bottom:4px;">${name}</div><div>${text}</div>`;
+                div.innerHTML = `<div style="font-size:10px; font-weight:bold; color:${color}; margin-bottom:4px;">${name}</div><div>${text}</div>`;
                 area.appendChild(div);
                 area.scrollTop = area.scrollHeight;
             }
@@ -242,7 +250,7 @@
             document.getElementById('send-btn').onclick = sendMessage;
             document.getElementById('msg-input').onkeypress = (e) => { if(e.key === 'Enter') sendMessage(); };
             document.getElementById('disband-btn').onclick = () => {
-                if(confirm("Close room?")) {
+                if(confirm("Disband?")) {
                     connections.forEach(c => { if(c.open) c.send({type: 'disband'}); });
                     location.reload();
                 }
