@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>New Tab</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+</head>
+<body class="chat-bg">
+    <header>
+        <h1 onclick="location.href='index.html'">Toothbrush Chat</h1>
+        <div id="room-header-info" style="display:none; font-weight:bold; font-size:18px;">
+            <span id="display-room-name"></span> | <span id="display-pin">PIN: _ _ _ _ _ _</span>
+        </div>
+        <div class="controls">
+            <button id="disband-btn" class="save-btn" style="background:#B71C1C; display:none;">Disband</button>
+            <button onclick="location.href='index.html'" class="save-btn" style="background:#555;">Back</button>
+        </div>
+    </header>
+
+    <!-- Home Screen -->
+    <main id="chat-home" style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:80vh; gap:20px;">
+        <div style="background:#1f1f1f; padding:40px; border-radius:20px; border:1px solid #333; text-align:center;">
+            <h2>Enter PIN</h2>
+            <input type="text" id="pin-entry" class="pin-input-large" placeholder="000000" maxlength="6">
+            <div id="pin-error" style="color:#f44336; margin-top:10px; display:none; font-weight:bold;">Incorrect PIN!</div>
+            <button id="join-btn" class="save-btn" style="background:#2E7D32; width:100%; margin-top:15px; height:50px;">Join Room</button>
+            
+            <hr style="margin:30px 0; border:1px solid #333;">
+            
+            <button id="open-host-panel" class="save-btn" style="background:rgba(255,255,255,0.1); width:100%;">Host Private Room</button>
+        </div>
+    </main>
+
+    <!-- Host Panel Modal -->
+    <div id="host-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:100; align-items:center; justify-content:center;">
+        <div style="background:#1f1f1f; padding:30px; border-radius:15px; width:350px;">
+            <h3>Host New Room</h3>
+            <input type="text" id="host-name-input" placeholder="Room Name" style="width:100%; margin-top:15px;">
+            <input type="text" id="host-pin-input" placeholder="6-Digit PIN" maxlength="6" style="width:100%; margin-top:10px;">
+            <button id="start-host-btn" class="save-btn" style="background:#2E7D32; width:100%; margin-top:15px;">Start Room</button>
+            <button onclick="document.getElementById('host-modal').style.display='none'" class="save-btn" style="background:#444; width:100%; margin-top:5px;">Cancel</button>
+        </div>
+    </div>
+
+    <!-- Active Chat Room -->
+    <main id="chat-room" style="display:none; flex-direction:column; height:calc(100vh - 70px);">
+        <div id="messages" style="flex:1; overflow-y:auto; padding:20px; display:flex; flex-direction:column;"></div>
+        <div style="padding:20px; background:#1f1f1f; display:flex; gap:10px;">
+            <input type="text" id="msg-input" placeholder="Type a message..." style="flex:1;">
+            <button id="send-btn" class="save-btn" style="background:#2E7D32;">Send</button>
+        </div>
+    </main>
+
+    <script>
+        // --- Configuration & Identity ---
+        const colorMap = {"#F44336":"Crimson","#E91E63":"Rose","#9C27B0":"Amethyst","#673AB7":"Indigo","#2196F3":"Azure","#00BCD4":"Cyan","#009688":"Teal","#4CAF50":"Leaf","#8BC34A":"Lime","#FFEB3B":"Gold","#FF9800":"Orange","#795548":"Cedar","#607D8B":"Steel","#636B2F":"Olive","#D4E157":"Pear","#26C6DA":"Sky"};
+        const colors = Object.keys(colorMap);
+        let myColor = colors[Math.floor(Math.random()*colors.length)];
+        let myName = colorMap[myColor] + "_" + Math.floor(Math.random()*999);
+        
+        let peer, conn, isHost = false, connections = [];
+
+        // --- Navigation ---
+        document.getElementById('open-host-panel').onclick = () => document.getElementById('host-modal').style.display='flex';
+        
+        // --- Host Logic ---
+        document.getElementById('start-host-btn').onclick = () => {
+            const name = document.getElementById('host-name-input').value;
+            const pin = document.getElementById('host-pin-input').value;
+            if(name && pin.length === 6) {
+                isHost = true;
+                initPeer(pin, name);
+            } else { alert("Enter Name and 6-Digit PIN"); }
+        };
+
+        // --- Join Logic ---
+        document.getElementById('join-btn').onclick = () => {
+            const pin = document.getElementById('pin-entry').value;
+            if(pin.length === 6) initPeer(null, null, pin);
+        };
+
+        document.getElementById('pin-entry').oninput = () => {
+            document.getElementById('pin-entry').style.color = "white";
+            document.getElementById('pin-error').style.display = "none";
+        };
+
+        function initPeer(pin = null, roomName = null, joinPin = null) {
+            const activePin = pin || joinPin;
+            // Peer ID format is toothbrush-PIN
+            peer = new Peer('toothbrush-room-' + activePin);
+
+            peer.on('open', (id) => {
+                if(isHost) {
+                    setupRoomUI(roomName, pin);
+                } else {
+                    connectToRoom(joinPin);
+                }
+            });
+
+            peer.on('error', (err) => {
+                if(err.type === 'unavailable-id' && isHost) alert("PIN already in use! Try another.");
+                if(!isHost) {
+                    document.getElementById('pin-entry').style.color = "#f44336";
+                    document.getElementById('pin-error').style.display = "block";
+                }
+            });
+
+            peer.on('connection', (c) => {
+                c.on('data', (data) => handleData(data, c));
+                if(isHost) connections.push(c);
+            });
+        }
+
+        function connectToRoom(pin) {
+            conn = peer.connect('toothbrush-room-' + pin);
+            conn.on('open', () => {
+                setupRoomUI("Private Room", pin);
+                conn.send({type: 'join', name: myName, color: myColor});
+            });
+            conn.on('data', handleData);
+        }
+
+        function setupRoomUI(name, pin) {
+            document.getElementById('chat-home').style.display = 'none';
+            document.getElementById('host-modal').style.display = 'none';
+            document.getElementById('chat-room').style.display = 'flex';
+            document.getElementById('room-header-info').style.display = 'block';
+            document.getElementById('display-room-name').textContent = name;
+            document.getElementById('display-pin').textContent = "PIN: " + pin;
+            if(isHost) document.getElementById('disband-btn').style.display = 'block';
+        }
+
+        function handleData(data, senderConn) {
+            if(data.type === 'msg') appendMessage(data.name, data.color, data.text);
+            if(data.type === 'disband') { alert("Room Disbanded"); location.reload(); }
+            if(data.type === 'kick') { alert("You have been kicked"); location.reload(); }
+        }
+
+        function appendMessage(name, color, text) {
+            const msgArea = document.getElementById('messages');
+            const div = document.createElement('div');
+            div.className = "chat-msg";
+            div.style.borderColor = color;
+            div.style.alignSelf = (name === myName) ? "flex-end" : "flex-start";
+            
+            div.innerHTML = `
+                <div style="font-size:11px; font-weight:bold; color:${color}; cursor:pointer;" onclick="kickUser('${name}')">${name}</div>
+                <div>${text}</div>
+            `;
+            msgArea.appendChild(div);
+            msgArea.scrollTop = msgArea.scrollHeight;
+        }
+
+        function kickUser(targetName) {
+            if(!isHost || targetName === myName) return;
+            if(confirm("Kick " + targetName + "?")) {
+                const target = connections.find(c => c.metadata?.name === targetName);
+                if(target) target.send({type: 'kick'});
+            }
+        }
+
+        document.getElementById('send-btn').onclick = () => {
+            const input = document.getElementById('msg-input');
+            const val = input.value.trim();
+            if(!val) return;
+            appendMessage(myName, myColor, val);
+            const packet = {type: 'msg', name: myName, color: myColor, text: val};
+            if(isHost) connections.forEach(c => c.send(packet));
+            else conn.send(packet);
+            input.value = "";
+        };
+
+        document.getElementById('disband-btn').onclick = () => {
+            connections.forEach(c => c.send({type: 'disband'}));
+            location.reload();
+        };
+    </script>
+</body>
+</html>
