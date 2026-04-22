@@ -56,6 +56,37 @@
             border: 2px solid #333; color: white; width: 100%; border-radius: 12px; padding: 15px;
         }
         .overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 1000; align-items: center; justify-content: center; }
+		
+		/* PIN Hider Styles */
+#pin-wrapper {
+    position: relative;
+    display: inline-block;
+    cursor: pointer;
+    user-select: none;
+    padding: 0 5px;
+    min-width: 130px;
+    text-align: center;
+}
+
+#pin-cover {
+    position: absolute;
+    top: -4px; left: 0; right: 0; bottom: -4px;
+    background-color: #1f1f1f;
+    color: #1a1a1a; /* Very dark grey text, as requested */
+    font-size: 10px;
+    font-weight: bold;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.15s ease-in-out;
+    opacity: 1; /* Covered by default */
+}
+
+/* When the wrapper is clicked, this class hides the cover */
+#pin-wrapper.revealed #pin-cover {
+    opacity: 0;
+}
     </style>
 </head>
 <body>
@@ -68,7 +99,11 @@
         </div>
 
         <div id="room-header-info" style="display:none; font-weight:bold; margin-left: 20px;">
-            <span id="display-room-name"></span> | <span id="display-pin"></span>
+            <span id="display-room-name"></span> | 
+            <span id="pin-wrapper">
+                <span id="display-pin"></span>
+                <span id="pin-cover">Click to Show/Hide</span>
+            </span>
         </div>
 
         <div class="controls">
@@ -258,6 +293,10 @@
                 document.getElementById('stats-area').style.display = 'flex';
                 document.getElementById('display-room-name').textContent = name;
                 document.getElementById('display-pin').textContent = "PIN: " + pin;
+                
+                // NEW: Ensure PIN starts covered for the host
+                document.getElementById('pin-wrapper').classList.remove('revealed');
+                
                 if(isHost) document.getElementById('disband-btn').style.display = 'block';
             }
 
@@ -271,7 +310,10 @@
                 area.appendChild(div); area.scrollTop = area.scrollHeight;
             }
 
-            document.getElementById('send-btn').onclick = () => {
+            // Toggle the PIN cover visibility
+            document.getElementById('pin-wrapper').onclick = function() { this.classList.toggle('revealed'); };
+			
+			document.getElementById('send-btn').onclick = () => {
                 const val = document.getElementById('msg-input').value.trim();
                 if(!val) return;
                 appendMessage(myName, myColor, val);
