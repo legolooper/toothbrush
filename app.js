@@ -92,19 +92,91 @@ document.getElementById('cloak-btn').onclick = () => {
 };
 
 document.getElementById('export-btn').onclick = async () => {
-    const tx = db.transaction("customGames", "readonly");
-    const custom = await new Promise(r => { const req = tx.objectStore("customGames").getAll(); req.onsuccess = () => r(req.result); });
-    const saves = {}; for (let i=0; i<localStorage.length; i++) { const k = localStorage.key(i); saves[k] = localStorage.getItem(k); }
-    const blob = new Blob([JSON.stringify({ saves, games: custom })], {type:'application/json'});
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'toothbrush_backup.json'; a.click();
+    const tx = db.transaction('customGames', 'readonly');
+    const customGames = await new Promise(r => {
+        const req = tx.objectStore('customGames').getAll();
+        req.onsuccess = () => r(req.result);
+    });
+
+    // 1. Grab all localStorage (Drive Mad style)
+    const allSaves = {};
+    for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        allSaves[key] = localStorage.getItem(key);
+    }
+
+    // 2. Grab all IndexedDB data (Undertale / Unity style)
+    const idbData = {};
+    const dbs = await window.indexedDB.databases();
+    for (let dbInfo of dbs) {
+        if (dbInfo.name === "GameStorageDB") continue; // Skip our app's own database
+        
+        const gameDB = await new Promise(res => {
+            const req = indexedDB.open(dbInfo.name);
+            req.onsuccess = () => res(req.result);
+        });
+
+        const dbContent = {};
+        for (let storeName of gameDB.objectStoreNames) {
+            const storeTx = gameDB.transaction(storeName, 'readonly');
+            dbContent[storeName] = await new Promise(res => {
+                storeTx.objectStore(storeName).getAll().onsuccess = e => res(e.target.result);
+            });
+        }
+        idbData[dbInfo.name] = dbContent;
+        gameDB.close();
+    }
+
+    const backupData = {
+        saves: allSaves,
+        indexedData: idbData,
+        games: customGames
+    };
+
+    const blob = new Blob([JSON.stringify(backupData)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'toothbrush_backup.json';
+    a.click();
 };
 
-document.getElementById('import-btn').onchange = e => {
+document.getElementById('import-btn').onchange = (e) => {
     const reader = new FileReader();
-    reader.onload = async ev => {
+    reader.onload = async (ev) => {
         const data = JSON.parse(ev.target.result);
-        if (data.saves) Object.keys(data.saves).forEach(k => localStorage.setItem(k, data.saves[k]));
-        if (data.games) { const tx = db.transaction("customGames", "readwrite"); data.games.forEach(g => tx.objectStore("customGames").put(g)); }
+        
+        // 1. Restore localStorage
+        if (data.saves) {
+            Object.keys(data.saves).forEach(k => localStorage.setItem(k, data.saves[k]));
+        }
+
+        // 2. Restore Custom Games
+        if (data.games) {
+            const tx = db.transaction('customGames', 'readwrite');
+            data.games.forEach(g => tx.objectStore('customGames').put(g));
+        }
+
+        // 3. Restore IndexedDB (The "Undertale Fix")
+        if (data.indexedData) {
+            for (let dbName in data.indexedData) {
+                const dbRequest = indexedDB.open(dbName);
+                dbRequest.onupgradeneeded = (event) => {
+                    for (let storeName in data.indexedData[dbName]) {
+                        event.target.result.createObjectStore(storeName);
+                    }
+                };
+                const openedDB = await new Promise(res => {
+                    dbRequest.onsuccess = () => res(dbRequest.result);
+                });
+                for (let storeName in data.indexedData[dbName]) {
+                    const storeTx = openedDB.transaction(storeName, 'readwrite');
+                    data.indexedData[dbName][storeName].forEach(item => storeTx.objectStore(storeName).put(item));
+                }
+                openedDB.close();
+            }
+        }
+        
+        alert("Restore Complete! Reloading site...");
         location.reload();
     };
     reader.readAsText(e.target.files[0]);
