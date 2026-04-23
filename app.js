@@ -92,6 +92,15 @@ async function deleteGame(id, index) {
     games.splice(index, 1); renderGameList();
 }
 
+// Chromebook Universal Tab Killer
+function killMainTab() {
+    document.title = "New Tab";
+    document.body.innerHTML = ""; 
+    window.open('', '_self');
+    window.close();
+    setTimeout(() => { window.location.replace("https://classroom.google.com"); }, 300);
+}
+
 document.getElementById('cloak-btn').onclick = () => {
     if (!currentGame) return alert("Select game");
     const win = window.open('about:blank', '_blank');
@@ -102,7 +111,16 @@ document.getElementById('cloak-btn').onclick = () => {
     const ifr = win.document.createElement('iframe');
     Object.assign(ifr.style, { position:'fixed', top:0, left:0, width:'100%', height:'100%', border:'none' });
     ifr.src = gameSrc; win.document.body.appendChild(ifr);
-    window.open('about:blank', '_self'); window.close();
+    
+    killMainTab();
+};
+
+document.getElementById('proxy-btn').onclick = () => {
+    // Note: The "Dreams" proxy blocks iframes. Opening directly in new tab, but still killing this tab to hide evidence.
+    const win = window.open('https://dreams.centromariapolis.cl/', '_blank');
+    if (!win) return alert("Pop-up Blocked! Please allow pop-ups.");
+    
+    killMainTab();
 };
 
 document.getElementById('export-btn').onclick = async () => {
@@ -112,18 +130,16 @@ document.getElementById('export-btn').onclick = async () => {
         req.onsuccess = () => r(req.result);
     });
 
-    // 1. Grab all localStorage (Drive Mad style)
     const allSaves = {};
     for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
         allSaves[key] = localStorage.getItem(key);
     }
 
-    // 2. Grab all IndexedDB data (Undertale / Unity style)
     const idbData = {};
     const dbs = await window.indexedDB.databases();
     for (let dbInfo of dbs) {
-        if (dbInfo.name === "GameStorageDB") continue; // Skip our app's own database
+        if (dbInfo.name === "GameStorageDB") continue; 
         
         const gameDB = await new Promise(res => {
             const req = indexedDB.open(dbInfo.name);
@@ -141,12 +157,7 @@ document.getElementById('export-btn').onclick = async () => {
         gameDB.close();
     }
 
-    const backupData = {
-        saves: allSaves,
-        indexedData: idbData,
-        games: customGames
-    };
-
+    const backupData = { saves: allSaves, indexedData: idbData, games: customGames };
     const blob = new Blob([JSON.stringify(backupData)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -158,30 +169,18 @@ document.getElementById('import-btn').onchange = (e) => {
     const reader = new FileReader();
     reader.onload = async (ev) => {
         const data = JSON.parse(ev.target.result);
-        
-        // 1. Restore localStorage
-        if (data.saves) {
-            Object.keys(data.saves).forEach(k => localStorage.setItem(k, data.saves[k]));
-        }
-
-        // 2. Restore Custom Games
+        if (data.saves) Object.keys(data.saves).forEach(k => localStorage.setItem(k, data.saves[k]));
         if (data.games) {
             const tx = db.transaction('customGames', 'readwrite');
             data.games.forEach(g => tx.objectStore('customGames').put(g));
         }
-
-        // 3. Restore IndexedDB (The "Undertale Fix")
         if (data.indexedData) {
             for (let dbName in data.indexedData) {
                 const dbRequest = indexedDB.open(dbName);
                 dbRequest.onupgradeneeded = (event) => {
-                    for (let storeName in data.indexedData[dbName]) {
-                        event.target.result.createObjectStore(storeName);
-                    }
+                    for (let storeName in data.indexedData[dbName]) { event.target.result.createObjectStore(storeName); }
                 };
-                const openedDB = await new Promise(res => {
-                    dbRequest.onsuccess = () => res(dbRequest.result);
-                });
+                const openedDB = await new Promise(res => { dbRequest.onsuccess = () => res(dbRequest.result); });
                 for (let storeName in data.indexedData[dbName]) {
                     const storeTx = openedDB.transaction(storeName, 'readwrite');
                     data.indexedData[dbName][storeName].forEach(item => storeTx.objectStore(storeName).put(item));
@@ -189,15 +188,15 @@ document.getElementById('import-btn').onchange = (e) => {
                 openedDB.close();
             }
         }
-        
         alert("Restore Complete! Reloading site...");
         location.reload();
     };
     reader.readAsText(e.target.files[0]);
 };
 
+// THE COMMA FIX IS HERE
 const splashes = [
-     "\"Assisted by Jayden!\"", "\"No, please don't close my ta-\"", "\"Wait, wait, I was about to finish the level!\"",
+    "\"Assisted by Jayden!\"", "\"No, please don't close my ta-\"", "\"Wait, wait, I was about to finish the level!\"",
     "\"Prompted to perfection.\"", "\"ALT+F4: The ultimate speedrun tactic.\"", "\"My AI solved the math, I solved the level.\"",
     "\"High scores > GPA.\"", "\"Is it lag, or just the school WiFi?\"", "\"The teacher is coming, hit the Pink button!\"",
     "\"Database authorized.\"", "\"Saving your progress... hopefully.\"", "\"Not a bug, it's a feature.\"",
@@ -230,8 +229,11 @@ const splashes = [
     "\"The UI is polished, the games are not.\"", "\"A masterclass in distraction.\"", "\"Wait, I actually need to solve this.\"",
     "\"The AI wrote the code, you play the game.\"", "\"Everything is fine.\"", "\"The final boss of the school year.\"",
     "\"Your progress is our priority.\"", "\"Hardcoded for fun.\"", "\"The stash is ultimate for a reason.\"",
-    "\"READ the TUTORIAL!\"", "\"Dead.\"", "\"Wow. Just... wow.\"", "\"Honorable mention: Ctrl+W.\""
-]; // ... (Add the rest of the 100 splashes here)
+    "\"READ the TUTORIAL!\"", 
+    "\"Dead.\"", 
+    "\"Wow. Just... wow.\"", 
+    "\"Honorable mention: Ctrl+W.\""
+]; 
 
 function setSplash() {
     const el = document.getElementById('splash-text');
@@ -240,35 +242,3 @@ function setSplash() {
 
 loadGames();
 window.addEventListener('DOMContentLoaded', setSplash);
-
-document.getElementById('proxy-btn').onclick = () => {
-    // 1. Open the cloaked window
-    const win = window.open('about:blank', '_blank');
-    if (!win) return alert("Pop-up Blocked! Please allow pop-ups.");
-
-    // 2. Set tab name to New Tab
-    win.document.title = 'New Tab';
-
-    // 3. Inject the Proxy into the cloaked tab
-    const iframe = win.document.createElement('iframe');
-    Object.assign(iframe.style, {
-        position: 'fixed', 
-        top: '0', 
-        left: '0', 
-        width: '100%', 
-        height: '100%', 
-        border: 'none', 
-        margin: '0', 
-        padding: '0', 
-        overflow: 'hidden',
-        backgroundColor: '#000'
-    });
-    
-    iframe.src = "https://dreams.centromariapolis.cl/"; 
-    
-    win.document.body.appendChild(iframe);
-
-    // 4. Close the original website tab
-    window.open('about:blank', '_self');
-    window.close();
-};
