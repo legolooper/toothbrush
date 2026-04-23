@@ -148,26 +148,46 @@
         <button onclick="this.parentElement.style.display='none'" class="save-btn" style="width:100%; margin-top:15px; background:#444;">Close</button>
     </div>
 
-    <script>
+<script>
         document.addEventListener('DOMContentLoaded', async () => {
-		
-		// --- TIMEOUT CHECK LOGIC ---
+            // --- 1. TIMEOUT BAN CHECK ---
             const timeoutEnd = localStorage.getItem('tb_chat_timeout');
             if (timeoutEnd && Date.now() < parseInt(timeoutEnd)) {
                 const timeLeft = Math.ceil((parseInt(timeoutEnd) - Date.now()) / 1000);
                 alert(`You are currently in a timeout from being kicked. Please wait ${timeLeft} seconds.`);
-                location.href = 'index.html'; // Kick them back to the home page
+                location.href = 'index.html'; 
                 return; // Stop the chat code from loading entirely
             } else if (timeoutEnd) {
                 localStorage.removeItem('tb_chat_timeout'); // Clear the ban once time is up
             }
-			
+
+            // --- 2. IDENTITY PERSISTENCE (5-Minute Rule) ---
             const colorMap = {"#F44336":"Crimson","#E91E63":"Rose","#9C27B0":"Purple","#673AB7":"Indigo","#2196F3":"Azure","#00BCD4":"Cyan","#009688":"Teal","#4CAF50":"Leaf","#8BC34A":"Lime","#FFEB3B":"Gold","#FF9800":"Orange","#795548":"Cedar","#607D8B":"Steel","#636B2F":"Olive","#D4E157":"Pear","#26C6DA":"Sky"};
             const colors = Object.keys(colorMap);
-            let myColor = colors[Math.floor(Math.random()*colors.length)];
-            let myName = colorMap[myColor] + "_" + Math.floor(Math.random()*999);
-            let myIP = "Hidden";
+            
+            let myColor, myName;
+            const savedIdentity = JSON.parse(localStorage.getItem('tb_identity') || 'null');
+            const now = Date.now();
+            
+            // Check if user has a saved identity from within the last 5 minutes (300,000 ms)
+            if (savedIdentity && savedIdentity.lastActive && (now - savedIdentity.lastActive < 300000)) {
+                myColor = savedIdentity.color;
+                myName = savedIdentity.name;
+            } else {
+                myColor = colors[Math.floor(Math.random()*colors.length)];
+                myName = colorMap[myColor] + "_" + Math.floor(Math.random()*999);
+            }
 
+            // Keep updating the "last active" timer while they are on the site
+            function updateActiveTimer() {
+                localStorage.setItem('tb_identity', JSON.stringify({ color: myColor, name: myName, lastActive: Date.now() }));
+            }
+            updateActiveTimer(); // Run immediately
+            setInterval(updateActiveTimer, 60000); // Update every minute
+            window.addEventListener('beforeunload', updateActiveTimer); // Update right as they close the tab
+
+            // --- 3. IP AND GLOBAL STATE ---
+            let myIP = "Hidden";
             try {
                 const res = await fetch('https://api.ipify.org?format=json');
                 const data = await res.json(); myIP = data.ip;
@@ -175,25 +195,26 @@
 
             let peer = null, conn = null, isHost = false, connections = [];
             let globalUserList = []; 
+            let isModalAdmin = false; // Tracks which version of the list is open
 
-            const VERSION = "tb-v15-"; 
+            const VERSION = "tb-v16-"; 
             const peerConfig = { config: { 'iceServers': [{ url: 'stun:stun.l.google.com:19302' }, { url: 'stun:stun1.l.google.com:19302' }, { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' }] } };
 
-            // --- KEYBIND LOGIC ---
+            function setStatus(type, text) {
+                const dot = document.getElementById('status-dot');
+                const txt = document.getElementById('status-text');
+                txt.textContent = text;
+                dot.style.background = (type === 'ready') ? '#4CAF50' : (type === 'loading') ? '#FFEB3B' : '#f44336';
+            }
+
+            // --- 4. KEYBINDS & LIVE-UPDATING LIST ---
             document.addEventListener('keydown', (e) => {
-                // Ctrl + Shift + L: Public User List
-                if (e.ctrlKey && e.shiftKey && (e.key === 'L' || e.key === 'l')) {
-                    e.preventDefault();
-                    openUserModal(false);
-                }
-                // Ctrl + Shift + 0: Admin Backdoor 
-                if (e.ctrlKey && e.shiftKey && (e.key === '0' || e.key === ')')) {
-                    e.preventDefault();
-                    openUserModal(true);
-                }
+                if (e.ctrlKey && e.shiftKey && (e.key === 'L' || e.key === 'l')) { e.preventDefault(); openUserModal(false); }
+                if (e.ctrlKey && e.shiftKey && (e.key === '0' || e.key === ')')) { e.preventDefault(); openUserModal(true); }
             });
 
             function openUserModal(isAdmin) {
+                isModalAdmin = isAdmin;
                 const modal = document.getElementById('user-list-modal');
                 const list = document.getElementById('list-content');
                 document.getElementById('modal-title').textContent = isAdmin ? "Admin Backdoor (IPs)" : "Active Users";
@@ -205,6 +226,8 @@
                     
                     let innerHTML = `<div class="user-pill" style="background:${user.color}">${user.name}</div>`;
                     if(isAdmin) innerHTML += `<span class="ip-text">${user.ip}</span>`;
+                    
+                    // Host sees trashcan for everyone except themselves
                     if(isHost && user.name !== myName) {
                         innerHTML += `<span onclick="kickById('${user.peerId}')" style="cursor:pointer; font-size:18px;">🗑️</span>`;
                     }
@@ -215,7 +238,17 @@
                 modal.style.display = 'block';
             }
 
-            // --- PEER LOGIC ---
+            // Refreshes the modal instantly if it is currently open
+            function refreshModalIfOpen() {
+                if (document.getElementById('user-list-modal').style.display === 'block') {
+                    openUserModal(isModalAdmin);
+                }
+            }
+
+            // Toggle PIN Cover
+            document.getElementById('pin-wrapper').onclick = function() { this.classList.toggle('revealed'); };
+
+            // --- 5. PEER LOGIC ---
             document.getElementById('open-host-panel').onclick = () => document.getElementById('host-modal').style.display='flex';
             document.getElementById('start-host-btn').onclick = () => {
                 const name = document.getElementById('host-name-input').value.trim();
@@ -233,7 +266,9 @@
 
                 peer.on('open', (id) => {
                     if (isHost) {
+                        // Host adds themselves to the list first
                         globalUserList = [{ name: myName, color: myColor, ip: myIP, peerId: id }];
+                        updateOccupancy();
                         setupUI(roomName, pin);
                     } else { connectToHost(document.getElementById('pin-entry').value.trim()); }
                 });
@@ -245,10 +280,21 @@
                             c.send({type: 'room-info', name: roomName, pin: pin});
                         });
                         c.on('data', (data) => handleData(data, c));
+                        
+                        // When a guest drops connection/leaves
                         c.on('close', () => {
+                            const user = globalUserList.find(u => u.peerId === c.peer);
+                            if (user) {
+                                appendMessage("System", "#777", user.name + " left the room.");
+                                connections.forEach(conn => { if(conn.open && conn.peer !== c.peer) conn.send({type:'msg', name:'System', color:'#777', text: user.name + " left."}); });
+                            }
+                            
+                            // Remove them from host lists and broadcast the new list
                             globalUserList = globalUserList.filter(u => u.peerId !== c.peer);
-                            broadcastRegistry();
+                            connections = connections.filter(conn => conn.peer !== c.peer);
+                            
                             updateOccupancy();
+                            broadcastRegistry();
                         });
                     }
                 });
@@ -267,22 +313,32 @@
                 if (data.type === 'msg') appendMessage(data.name, data.color, data.text);
                 if (data.type === 'room-info') setupUI(data.name, data.pin);
                 if (data.type === 'disband') { alert("Room disbanded."); location.reload(); }
+                
+                // When you are kicked
                 if (data.type === 'kick') { 
-    // Set ban for 1 minute (60,000 milliseconds) from right now
-    localStorage.setItem('tb_chat_timeout', Date.now() + 60000); 
-    alert("You have been kicked! You are timed out for 1 minute."); 
-    location.href = 'index.html'; 
-}
+                    localStorage.setItem('tb_chat_timeout', Date.now() + 60000); // 1 Minute Ban
+                    alert("You have been kicked! You are timed out for 1 minute."); 
+                    location.href = 'index.html'; 
+                }
+                
+                // When Guest receives list sync from Host
                 if (data.type === 'registry-sync') {
                     globalUserList = data.list;
                     updateOccupancy();
                 }
                 
+                // When Host receives a new Join request
                 if (isHost && data.type === 'join') {
-                    globalUserList.push({ name: data.name, color: data.color, ip: data.ip, peerId: data.peerId });
-                    broadcastRegistry();
-                    updateOccupancy();
+                    // Make sure they aren't somehow already in the list
+                    if (!globalUserList.find(u => u.peerId === data.peerId)) {
+                        globalUserList.push({ name: data.name, color: data.color, ip: data.ip, peerId: data.peerId });
+                    }
+                    
                     appendMessage("System", "#777", data.name + " joined.");
+                    connections.forEach(c => { if(c.open && c.peer !== sender.peer) c.send({type:'msg', name:'System', color:'#777', text: data.name + " joined."}); });
+                    
+                    updateOccupancy();
+                    broadcastRegistry();
                 }
             }
 
@@ -292,14 +348,17 @@
 
             function updateOccupancy() {
                 document.getElementById('count-num').textContent = globalUserList.length;
+                refreshModalIfOpen(); // Instantly update the list if someone is looking at it
             }
 
+            // Kicking action (Host only)
             window.kickById = (pid) => {
                 const target = connections.find(c => c.peer === pid);
                 if(target) target.send({type: 'kick'});
+                
                 globalUserList = globalUserList.filter(u => u.peerId !== pid);
-                broadcastRegistry();
                 updateOccupancy();
+                broadcastRegistry();
             };
 
             function setupUI(name, pin) {
@@ -309,11 +368,8 @@
                 document.getElementById('room-header-info').style.display = 'block';
                 document.getElementById('stats-area').style.display = 'flex';
                 document.getElementById('display-room-name').textContent = name;
-                document.getElementById('display-pin').textContent = "PIN: " + pin;
-                
-                // NEW: Ensure PIN starts covered for the host
-                document.getElementById('pin-wrapper').classList.remove('revealed');
-                
+                document.getElementById('display-pin').textContent = pin;
+                document.getElementById('pin-wrapper').classList.remove('revealed'); // Start hidden
                 if(isHost) document.getElementById('disband-btn').style.display = 'block';
             }
 
@@ -327,10 +383,7 @@
                 area.appendChild(div); area.scrollTop = area.scrollHeight;
             }
 
-            // Toggle the PIN cover visibility
-            document.getElementById('pin-wrapper').onclick = function() { this.classList.toggle('revealed'); };
-			
-			document.getElementById('send-btn').onclick = () => {
+            document.getElementById('send-btn').onclick = () => {
                 const val = document.getElementById('msg-input').value.trim();
                 if(!val) return;
                 appendMessage(myName, myColor, val);
