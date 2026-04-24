@@ -1,5 +1,5 @@
 const dbName = "GameStorageDB";
-let db, games = [], currentGame = null;
+let db, games =[], currentGame = null;
 
 async function initDB() {
     return new Promise(r => {
@@ -52,17 +52,45 @@ function renderGameList() {
 function loadGame(game) {
     currentGame = game;
     const frame = document.getElementById('game-frame');
+    const emergencyBtn = document.getElementById('emergency-open-btn');
     
-    // 1. Always reset the sandbox security for standard HTML games
+    // Force visibility in case school CSS extensions try to hide it
+    frame.style.setProperty('display', 'block', 'important');
+    frame.style.setProperty('visibility', 'visible', 'important');
     frame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups allow-modals');
     
+    // Show Emergency Open button
+    if (emergencyBtn) emergencyBtn.style.display = 'inline-flex';
+
     if (game.type === 'file') {
-        const htmlContent = atob(game.content.split(',')[1]);
-        frame.srcdoc = `<script>try{window.localStorage.setItem('p','1');}catch(e){}<\/script>` + htmlContent;
+        const base64Data = game.content.split(',')[1];
+        let htmlContent;
+        try { htmlContent = atob(base64Data); } catch(e) { return alert("File corrupted."); }
+        
+        const persistenceScript = `<script>try{window.localStorage.setItem('p','1');}catch(e){}<\/script>`;
+        const finalHTML = persistenceScript + htmlContent;
+
+        // TIER 1: Try srcdoc (Best for saves)
+        try {
+            frame.srcdoc = finalHTML;
+        } catch (err1) {
+            console.warn("srcdoc blocked by school policy. Trying Blob...");
+            // TIER 2: Try Blob URL (Good for saves, sometimes blocked)
+            try {
+                const blob = new Blob([finalHTML], {type: 'text/html'});
+                frame.removeAttribute('srcdoc');
+                frame.src = URL.createObjectURL(blob);
+            } catch (err2) {
+                console.warn("Blobs blocked by school policy. Trying Data URI...");
+                // TIER 3: Try Data URI (Bad for saves, but guarantees the game plays)
+                frame.removeAttribute('srcdoc');
+                frame.src = game.content; 
+            }
+        }
     } else {
         frame.removeAttribute('srcdoc');
         
-        // 2. THE PDF FIX: If the file is a PDF, remove the sandbox so Chrome's PDF plugin is allowed to run.
+        // THE PDF FIX: If the file is a PDF, remove the sandbox so Chrome's PDF plugin is allowed to run.
         if (game.url.endsWith('.pdf')) {
             frame.removeAttribute('sandbox');
         }
@@ -71,19 +99,38 @@ function loadGame(game) {
     }
 }
 
-document.getElementById('add-game-btn').onclick = () => {
-    const title = document.getElementById('new-game-title').value;
-    const file = document.getElementById('new-game-file').files[0];
-    if (!title || !file) return alert("Missing data");
-    const reader = new FileReader();
-    reader.onload = async e => {
-        const newG = { id: 'custom_' + Date.now(), title, type: 'file', content: e.target.result };
-        const tx = db.transaction("customGames", "readwrite");
-        tx.objectStore("customGames").put(newG);
-        games.push(newG); renderGameList();
+// Emergency Open Logic (If the iframe is completely broken by the school)
+const emgBtn = document.getElementById('emergency-open-btn');
+if (emgBtn) {
+    emgBtn.onclick = () => {
+        if (!currentGame) return;
+        const win = window.open();
+        if (!win) return alert("Allow popups for emergency open!");
+        
+        if (currentGame.type === 'file') {
+            win.document.write(atob(currentGame.content.split(',')[1]));
+        } else {
+            win.location.href = currentGame.url;
+        }
     };
-    reader.readAsDataURL(file);
-};
+}
+
+const addGameBtn = document.getElementById('add-game-btn');
+if (addGameBtn) {
+    addGameBtn.onclick = () => {
+        const title = document.getElementById('new-game-title').value;
+        const file = document.getElementById('new-game-file').files[0];
+        if (!title || !file) return alert("Missing data");
+        const reader = new FileReader();
+        reader.onload = async e => {
+            const newG = { id: 'custom_' + Date.now(), title, type: 'file', content: e.target.result };
+            const tx = db.transaction("customGames", "readwrite");
+            tx.objectStore("customGames").put(newG);
+            games.push(newG); renderGameList();
+        };
+        reader.readAsDataURL(file);
+    };
+}
 
 async function deleteGame(id, index) {
     if (!confirm("Delete permanently?")) return;
@@ -101,101 +148,124 @@ function killMainTab() {
     setTimeout(() => { window.location.replace("https://classroom.google.com"); }, 300);
 }
 
-document.getElementById('cloak-btn').onclick = () => {
-    if (!currentGame) return alert("Select game");
-    const win = window.open('about:blank', '_blank');
-    const gameSrc = currentGame.type === 'file' ? URL.createObjectURL(new Blob([atob(currentGame.content.split(',')[1])], {type:'text/html'})) : currentGame.url;
-    win.document.title = "My Drive - Google Drive";
-    const link = win.document.createElement('link'); link.rel = 'icon'; link.href = 'https://ssl.gstatic.com/images/branding/product/1x/drive_2020q4_32dp.png';
-    win.document.head.appendChild(link);
-    const ifr = win.document.createElement('iframe');
-    Object.assign(ifr.style, { position:'fixed', top:0, left:0, width:'100%', height:'100%', border:'none' });
-    ifr.src = gameSrc; win.document.body.appendChild(ifr);
-    
-    killMainTab();
-};
-
-document.getElementById('proxy-btn').onclick = () => {
-    // Note: The "Dreams" proxy blocks iframes. Opening directly in new tab, but still killing this tab to hide evidence.
-    const win = window.open('https://dreams.centromariapolis.cl/', '_blank');
-    if (!win) return alert("Pop-up Blocked! Please allow pop-ups.");
-    
-    killMainTab();
-};
-
-document.getElementById('export-btn').onclick = async () => {
-    const tx = db.transaction('customGames', 'readonly');
-    const customGames = await new Promise(r => {
-        const req = tx.objectStore('customGames').getAll();
-        req.onsuccess = () => r(req.result);
-    });
-
-    const allSaves = {};
-    for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        allSaves[key] = localStorage.getItem(key);
-    }
-
-    const idbData = {};
-    const dbs = await window.indexedDB.databases();
-    for (let dbInfo of dbs) {
-        if (dbInfo.name === "GameStorageDB") continue; 
+const cloakBtn = document.getElementById('cloak-btn');
+if (cloakBtn) {
+    cloakBtn.onclick = () => {
+        if (!currentGame) return alert("Select game");
+        const win = window.open('about:blank', '_blank');
+        const gameSrc = currentGame.type === 'file' ? URL.createObjectURL(new Blob([atob(currentGame.content.split(',')[1])], {type:'text/html'})) : currentGame.url;
+        win.document.title = "My Drive - Google Drive";
+        const link = win.document.createElement('link'); link.rel = 'icon'; link.href = 'https://ssl.gstatic.com/images/branding/product/1x/drive_2020q4_32dp.png';
+        win.document.head.appendChild(link);
+        const ifr = win.document.createElement('iframe');
+        Object.assign(ifr.style, { position:'fixed', top:0, left:0, width:'100%', height:'100%', border:'none' });
+        ifr.src = gameSrc; win.document.body.appendChild(ifr);
         
-        const gameDB = await new Promise(res => {
-            const req = indexedDB.open(dbInfo.name);
-            req.onsuccess = () => res(req.result);
+        killMainTab();
+    };
+}
+
+const proxyBtn = document.getElementById('proxy-btn');
+if (proxyBtn) {
+    proxyBtn.onclick = () => {
+        // Fallback robust proxy link that resists school blocks (szns.us).
+        // Since many proxies block iframes, we open directly in a new tab but still use killMainTab to hide evidence on the main site.
+        const win = window.open('https://szns.us/', '_blank');
+        if (!win) return alert("Pop-up Blocked! Please allow pop-ups.");
+        
+        killMainTab();
+    };
+}
+
+const exportBtn = document.getElementById('export-btn');
+if (exportBtn) {
+    exportBtn.onclick = async () => {
+        const tx = db.transaction('customGames', 'readonly');
+        const customGames = await new Promise(r => {
+            const req = tx.objectStore('customGames').getAll();
+            req.onsuccess = () => r(req.result);
         });
 
-        const dbContent = {};
-        for (let storeName of gameDB.objectStoreNames) {
-            const storeTx = gameDB.transaction(storeName, 'readonly');
-            dbContent[storeName] = await new Promise(res => {
-                storeTx.objectStore(storeName).getAll().onsuccess = e => res(e.target.result);
+        // 1. Grab all localStorage (Drive Mad style)
+        const allSaves = {};
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            allSaves[key] = localStorage.getItem(key);
+        }
+
+        // 2. Grab all IndexedDB data (Undertale / Unity style)
+        const idbData = {};
+        const dbs = await window.indexedDB.databases();
+        for (let dbInfo of dbs) {
+            if (dbInfo.name === "GameStorageDB") continue; // Skip our app's own database
+            
+            const gameDB = await new Promise(res => {
+                const req = indexedDB.open(dbInfo.name);
+                req.onsuccess = () => res(req.result);
             });
-        }
-        idbData[dbInfo.name] = dbContent;
-        gameDB.close();
-    }
 
-    const backupData = { saves: allSaves, indexedData: idbData, games: customGames };
-    const blob = new Blob([JSON.stringify(backupData)], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'toothbrush_backup.json';
-    a.click();
-};
-
-document.getElementById('import-btn').onchange = (e) => {
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-        const data = JSON.parse(ev.target.result);
-        if (data.saves) Object.keys(data.saves).forEach(k => localStorage.setItem(k, data.saves[k]));
-        if (data.games) {
-            const tx = db.transaction('customGames', 'readwrite');
-            data.games.forEach(g => tx.objectStore('customGames').put(g));
-        }
-        if (data.indexedData) {
-            for (let dbName in data.indexedData) {
-                const dbRequest = indexedDB.open(dbName);
-                dbRequest.onupgradeneeded = (event) => {
-                    for (let storeName in data.indexedData[dbName]) { event.target.result.createObjectStore(storeName); }
-                };
-                const openedDB = await new Promise(res => { dbRequest.onsuccess = () => res(dbRequest.result); });
-                for (let storeName in data.indexedData[dbName]) {
-                    const storeTx = openedDB.transaction(storeName, 'readwrite');
-                    data.indexedData[dbName][storeName].forEach(item => storeTx.objectStore(storeName).put(item));
-                }
-                openedDB.close();
+            const dbContent = {};
+            for (let storeName of gameDB.objectStoreNames) {
+                const storeTx = gameDB.transaction(storeName, 'readonly');
+                dbContent[storeName] = await new Promise(res => {
+                    storeTx.objectStore(storeName).getAll().onsuccess = e => res(e.target.result);
+                });
             }
+            idbData[dbInfo.name] = dbContent;
+            gameDB.close();
         }
-        alert("Restore Complete! Reloading site...");
-        location.reload();
-    };
-    reader.readAsText(e.target.files[0]);
-};
 
-// THE COMMA FIX IS HERE
-const splashes = [
+        const backupData = { saves: allSaves, indexedData: idbData, games: customGames };
+        const blob = new Blob([JSON.stringify(backupData)], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'toothbrush_backup.json';
+        a.click();
+    };
+}
+
+const importBtn = document.getElementById('import-btn');
+if (importBtn) {
+    importBtn.onchange = (e) => {
+        const reader = new FileReader();
+        reader.onload = async (ev) => {
+            const data = JSON.parse(ev.target.result);
+            
+            // 1. Restore localStorage
+            if (data.saves) {
+                Object.keys(data.saves).forEach(k => localStorage.setItem(k, data.saves[k]));
+            }
+
+            // 2. Restore Custom Games
+            if (data.games) {
+                const tx = db.transaction('customGames', 'readwrite');
+                data.games.forEach(g => tx.objectStore('customGames').put(g));
+            }
+
+            // 3. Restore IndexedDB (The "Undertale Fix")
+            if (data.indexedData) {
+                for (let dbName in data.indexedData) {
+                    const dbRequest = indexedDB.open(dbName);
+                    dbRequest.onupgradeneeded = (event) => {
+                        for (let storeName in data.indexedData[dbName]) { event.target.result.createObjectStore(storeName); }
+                    };
+                    const openedDB = await new Promise(res => { dbRequest.onsuccess = () => res(dbRequest.result); });
+                    for (let storeName in data.indexedData[dbName]) {
+                        const storeTx = openedDB.transaction(storeName, 'readwrite');
+                        data.indexedData[dbName][storeName].forEach(item => storeTx.objectStore(storeName).put(item));
+                    }
+                    openedDB.close();
+                }
+            }
+            
+            alert("Restore Complete! Reloading site...");
+            location.reload();
+        };
+        reader.readAsText(e.target.files[0]);
+    };
+}
+
+const splashes =[
     "\"Assisted by Jayden!\"", "\"No, please don't close my ta-\"", "\"Wait, wait, I was about to finish the level!\"",
     "\"Prompted to perfection.\"", "\"ALT+F4: The ultimate speedrun tactic.\"", "\"My AI solved the math, I solved the level.\"",
     "\"High scores > GPA.\"", "\"Is it lag, or just the school WiFi?\"", "\"The teacher is coming, hit the Pink button!\"",

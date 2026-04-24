@@ -8,26 +8,34 @@
     <style>
         body {
             background-color: #1a1a1a;
-            background-image: linear-gradient(135deg, #1f1f1f 25%, transparent 25%), linear-gradient(225deg, #1f1f1f 25%, transparent 25%), linear-gradient(45deg, #1f1f1f 25%, transparent 25%), linear-gradient(315deg, #1f1f1f 25%, transparent 25%);
-            background-position: 40px 0, 40px 0, 0 0, 0 0; background-size: 80px 80px;
-            animation: moveBg 40s linear infinite; display: flex; flex-direction: column;
+            /* Zigzag Pattern */
+            background-image:  linear-gradient(135deg, #1f1f1f 25%, transparent 25%), linear-gradient(225deg, #1f1f1f 25%, transparent 25%), linear-gradient(45deg, #1f1f1f 25%, transparent 25%), linear-gradient(315deg, #1f1f1f 25%, transparent 25%);
+            background-position:  40px 0, 40px 0, 0 0, 0 0;
+            background-size: 80px 80px;
+            background-repeat: repeat;
+            animation: moveBackground 40s linear infinite;
+            display: flex;
+            flex-direction: column;
         }
-        @keyframes moveBg { from { background-position: 40px 0; } to { background-position: 540px 500px; } }
 
-        /* RE-ADDED STATUS HEADER STYLES */
-        .status-header { display: flex; align-items: center; gap: 8px; background: rgba(0,0,0,0.3); padding: 5px 15px; border-radius: 20px; font-size: 11px; }
-        .status-dot { width: 10px; height: 10px; border-radius: 50%; background: #555; }
+        @keyframes moveBackground {
+            from { background-position: 40px 0, 40px 0, 0 0, 0 0; }
+            to { background-position: 540px 500px, 540px 500px, 500px 500px, 500px 500px; }
+        }
 
+        /* Header Stats */
         .online-stats { display: flex; align-items: center; gap: 10px; margin-left: 15px; }
         .online-count { color: white; font-weight: bold; font-size: 16px; }
         .online-hint { color: #777; font-weight: bold; font-size: 10px; }
 
+        /* Chat Message Styling */
         .chat-msg {
             padding: 12px 18px; border-radius: 15px; background: rgba(0,0,0,0.6);
             border: 4px solid; max-width: 80%; margin-bottom: 12px; color: white;
             text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
         }
 
+        /* User List / Backdoor Styles */
         .list-modal {
             display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
             width: 90%; max-width: 500px; background: #1f1f1f; border: 2px solid #333;
@@ -46,21 +54,27 @@
         }
         .overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 1000; align-items: center; justify-content: center; }
 		
+		/* PIN Hider Styles */
         #pin-wrapper { position: relative; display: inline-block; cursor: pointer; user-select: none; padding: 0 5px; min-width: 130px; text-align: center; }
         #pin-cover {
             position: absolute; top: -4px; left: 0; right: 0; bottom: -4px;
             background-color: #1a1a1a; color: #777777; font-size: 10px; font-weight: bold;
             border-radius: 8px; display: flex; align-items: center; justify-content: center;
-            transition: opacity 0.15s ease-in-out; opacity: 1;
+            transition: opacity 0.15s ease-in-out; opacity: 1; /* Covered by default */
         }
+
+        /* When the wrapper is clicked, this class hides the cover */
         #pin-wrapper.revealed #pin-cover { opacity: 0; }
+
+        /* RE-ADDED STATUS HEADER STYLES */
+        .status-header { display: flex; align-items: center; gap: 8px; background: rgba(0,0,0,0.3); padding: 5px 15px; border-radius: 20px; font-size: 11px; }
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; background: #555; }
     </style>
 </head>
 <body>
     <header>
         <h1 onclick="location.href='index.html'">Toothbrush Chat</h1>
         
-        <!-- RE-ADDED STATUS DOT HERE -->
         <div class="status-header">
             <div id="status-dot" class="status-dot"></div>
             <span id="status-text">Network Offline</span>
@@ -90,6 +104,12 @@
             <h2 style="margin-bottom:20px; color:#fff;">Enter PIN</h2>
             <input type="text" id="pin-entry" class="pin-input-large" placeholder="------" maxlength="6">
             <div id="pin-error" style="color:#f44336; margin-bottom:15px; display:none; font-weight:bold;">Host Offline or Incorrect PIN!</div>
+            
+            <!-- Added School Mode Option for Joining -->
+			<label style="color:#aaa; font-size:13px; display:block; margin-bottom:15px; cursor:pointer;">
+                <input type="checkbox" id="join-school-mode"> Enable School Mode (Use if connecting fails)
+            </label>
+            
             <button id="join-btn" class="save-btn" style="background:#2E7D32; width:100%; height:55px; font-size:18px;">Join Room</button>
             <div style="margin:25px 0; color:#444; font-weight:bold;">OR</div>
             <button id="open-host-panel" class="save-btn" style="background:rgba(255,255,255,0.05); border:1px solid #444; width:100%;">Host New Room</button>
@@ -101,6 +121,12 @@
             <h3>Host Room</h3>
             <input type="text" id="host-name-input" placeholder="Room Name" style="width:100%; margin-top:15px;" class="pin-input-large">
             <input type="text" id="host-pin-input" placeholder="6-Digit PIN" maxlength="6" style="width:100%;" class="pin-input-large">
+            
+            <!-- Added School Mode Option for Hosting -->
+			<label style="color:#aaa; font-size:13px; display:block; margin-bottom:15px; margin-top:5px; cursor:pointer;">
+                <input type="checkbox" id="host-school-mode"> Enable School Mode (Bypass Firewall)
+            </label>
+            
             <button id="start-host-btn" class="save-btn" style="background:#2E7D32; width:100%; height:50px;">Go Live</button>
             <button onclick="document.getElementById('host-modal').style.display='none'" class="save-btn" style="background:#444; width:100%; margin-top:10px;">Cancel</button>
         </div>
@@ -123,6 +149,7 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', async () => {
+            // --- 1. TIMEOUT BAN CHECK ---
             const timeoutEnd = localStorage.getItem('tb_chat_timeout');
             if (timeoutEnd && Date.now() < parseInt(timeoutEnd)) {
                 const timeLeft = Math.ceil((parseInt(timeoutEnd) - Date.now()) / 1000);
@@ -133,6 +160,7 @@
                 localStorage.removeItem('tb_chat_timeout'); 
             }
 
+            // --- 2. IDENTITY PERSISTENCE (5-Minute Rule) ---
             const colorMap = {"#F44336":"Crimson","#E91E63":"Rose","#9C27B0":"Purple","#673AB7":"Indigo","#2196F3":"Azure","#00BCD4":"Cyan","#009688":"Teal","#4CAF50":"Leaf","#8BC34A":"Lime","#FFEB3B":"Gold","#FF9800":"Orange","#795548":"Cedar","#607D8B":"Steel","#636B2F":"Olive","#D4E157":"Pear","#26C6DA":"Sky"};
             const colors = Object.keys(colorMap);
             
@@ -155,6 +183,7 @@
             setInterval(updateActiveTimer, 60000); 
             window.addEventListener('beforeunload', updateActiveTimer); 
 
+            // --- 3. IP AND GLOBAL STATE ---
             let myIP = "Hidden";
             try {
                 const res = await fetch('https://api.ipify.org?format=json');
@@ -162,23 +191,48 @@
             } catch(e) {}
 
             let peer = null, conn = null, isHost = false, connections = [];
-            let globalUserList = []; 
+            let globalUserList =[]; 
             let isModalAdmin = false; 
 
             const VERSION = "tb-v16-"; 
-            const peerConfig = { config: { 'iceServers': [{ url: 'stun:stun.l.google.com:19302' }, { url: 'stun:stun1.l.google.com:19302' }, { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' }] } };
+            
+            // NEW: Config generator to support standard and School Mode fallback
+            function getPeerConfig(useSchoolMode) {
+                let config = {
+                    'iceServers':[
+                        { url: 'stun:stun.l.google.com:19302' },
+                        { url: 'stun:stun1.l.google.com:19302' },
+                        { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+                        { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+                        { urls: 'turn:global.turn.twilio.com:3478?transport=tcp', username: 'turn', credential: 'turn' }
+                    ]
+                };
+                if (useSchoolMode) {
+                    config.iceTransportPolicy = 'relay'; // Forces traffic through standard HTTP ports
+                }
+                return { debug: 1, config: config };
+            }
 
             function setStatus(type, text) {
                 const dot = document.getElementById('status-dot');
                 const txt = document.getElementById('status-text');
-                if(!dot || !txt) return; // Prevents the exact crash you were experiencing!
+                if(!dot || !txt) return; 
                 txt.textContent = text;
                 dot.style.background = (type === 'ready') ? '#4CAF50' : (type === 'loading') ? '#FFEB3B' : '#f44336';
             }
 
+            // --- 4. KEYBINDS & LIVE-UPDATING LIST ---
             document.addEventListener('keydown', (e) => {
-                if (e.ctrlKey && e.shiftKey && (e.key === 'L' || e.key === 'l')) { e.preventDefault(); openUserModal(false); }
-                if (e.ctrlKey && e.shiftKey && (e.key === '0' || e.key === ')')) { e.preventDefault(); openUserModal(true); }
+                // Ctrl + Shift + L: Public User List
+                if (e.ctrlKey && e.shiftKey && (e.key === 'L' || e.key === 'l')) { 
+                    e.preventDefault(); 
+                    openUserModal(false); 
+                }
+                // Ctrl + Shift + 0: Admin Backdoor (Also checks ')' for Shift variation)
+                if (e.ctrlKey && e.shiftKey && (e.key === '0' || e.key === ')')) { 
+                    e.preventDefault(); 
+                    openUserModal(true); 
+                }
             });
 
             function openUserModal(isAdmin) {
@@ -211,33 +265,43 @@
                 }
             }
 
+            // PIN Wrapper visibility toggle
             document.getElementById('pin-wrapper').onclick = function() { this.classList.toggle('revealed'); };
 
+            // --- 5. PEER LOGIC ---
             document.getElementById('open-host-panel').onclick = () => document.getElementById('host-modal').style.display='flex';
+            
             document.getElementById('start-host-btn').onclick = () => {
                 const name = document.getElementById('host-name-input').value.trim();
                 const pin = document.getElementById('host-pin-input').value.trim();
-                if(name && pin.length === 6) { isHost = true; startPeer(pin, name); }
+                const schoolMode = document.getElementById('host-school-mode').checked;
+                if(name && pin.length === 6) { isHost = true; startPeer(pin, name, null, schoolMode); }
             };
+            
             document.getElementById('join-btn').onclick = () => {
                 const pin = document.getElementById('pin-entry').value.trim();
-                if(pin.length === 6) { isHost = false; startPeer(null, null, pin); }
+                const schoolMode = document.getElementById('join-school-mode').checked;
+                if(pin.length === 6) { isHost = false; startPeer(null, null, pin, schoolMode); }
             };
 
-            function startPeer(pin, roomName) {
-                setStatus('loading', 'Connecting...'); // <-- Added Status Update
-                
+            function startPeer(pin, roomName, joinPin, useSchoolMode) {
+                setStatus('loading', 'Connecting...'); 
                 if(peer) peer.destroy();
-                peer = new Peer(isHost ? VERSION + pin : null, peerConfig);
+                
+                const currentConfig = getPeerConfig(useSchoolMode);
+                peer = new Peer(isHost ? VERSION + pin : null, currentConfig);
 
                 peer.on('open', (id) => {
                     if (isHost) {
-                        setStatus('ready', 'Room Live'); // <-- Added Status Update
+                        setStatus('ready', 'Room Live'); 
                         globalUserList =[{ name: myName, color: myColor, ip: myIP, peerId: id }];
                         updateOccupancy();
                         setupUI(roomName, pin);
                     } else { 
-                        connectToHost(document.getElementById('pin-entry').value.trim()); 
+                        // Add slight delay in school mode for relays to catch up
+                        setTimeout(() => { 
+                            connectToHost(joinPin || document.getElementById('pin-entry').value.trim()); 
+                        }, useSchoolMode ? 1000 : 0);
                     }
                 });
 
@@ -261,25 +325,27 @@
                         });
                     }
                 });
+                
                 peer.on('error', () => { 
-                    setStatus('error', 'Network Error'); // <-- Added Status Update
+                    setStatus('error', 'Network Error'); 
                     document.getElementById('pin-error').style.display = 'block'; 
                 });
             }
 
             function connectToHost(pin) {
-                setStatus('loading', 'Joining Room...'); // <-- Added Status Update
-                
+                setStatus('loading', 'Joining Room...'); 
                 conn = peer.connect(VERSION + pin, { reliable: true });
+                
                 conn.on('open', () => {
-                    setStatus('ready', 'Connected'); // <-- Added Status Update
+                    setStatus('ready', 'Joined');
                     conn.send({type: 'join', name: myName, color: myColor, ip: myIP, peerId: peer.id});
                 });
+                
                 conn.on('data', handleData);
                 
                 setTimeout(() => { 
                     if(!conn.open) {
-                        setStatus('error', 'Host Offline'); // <-- Added Status Update
+                        setStatus('error', 'Host Offline'); 
                         document.getElementById('pin-error').style.display = 'block';
                     } 
                 }, 8000);
