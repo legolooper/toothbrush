@@ -125,7 +125,9 @@
             document.body.innerHTML = ""; 
             window.open('', '_self');
             window.close();
-            setTimeout(() => { window.location.replace("https://classroom.google.com"); }, 300);
+            
+            // UPDATED: Now redirects to about:blank
+            setTimeout(() => { window.location.replace("about:blank"); }, 300);
         };
     </script>
 </body>
