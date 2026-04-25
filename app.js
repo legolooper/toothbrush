@@ -234,7 +234,7 @@ if (proxyBtn) {
             position: 'fixed', top: '0', left: '0', width: '100%', height: '100%',
             border: 'none', margin: '0', padding: '0', overflow: 'hidden'
         });
-        iframe.src = "https://szns.us/"; // You can change this proxy link if it gets blocked
+        iframe.src = "https://trigonometry.scientificsense.org/"; // You can change this proxy link if it gets blocked
         win.document.body.appendChild(iframe);
         
         // Kill the original tab
