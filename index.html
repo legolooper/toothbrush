@@ -231,12 +231,22 @@
                 cookie.remove(); 
                 document.getElementById('cookie-modal').style.display = 'flex'; 
                 
+                // Local fallback: Track how many the user has found personally
+                let localCookies = parseInt(localStorage.getItem('tb_cookies') || '0') + 1;
+                localStorage.setItem('tb_cookies', localCookies);
+
                 try {
-                    const res = await fetch('https://api.counterapi.dev/v1/toothbrush_site/golden_cookie/up');
+                    // FIX: Removed underscores, which often crash this specific API
+                    const res = await fetch('https://api.counterapi.dev/v1/toothbrushsite/goldencookie/up');
+                    if (!res.ok) throw new Error("API Blocked");
                     const data = await res.json();
                     document.getElementById('cookie-counter').textContent = data.count.toLocaleString();
                 } catch(e) {
-                    document.getElementById('cookie-counter').textContent = "API Error";
+                    // FAILSAFE: If the school Wi-Fi or an Ad-Blocker kills the request, show the personal counter instead!
+                    document.getElementById('cookie-counter').innerHTML = `
+                        <span style="font-size:16px; color:#f44336;">Global Counter Blocked by Network</span><br>
+                        <span style="font-size: 18px; color: #5fc772; margin-top: 10px; display: block;">Your Total Found: ${localCookies}</span>
+                    `;
                 }
             };
         }
