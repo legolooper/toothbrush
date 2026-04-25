@@ -5,6 +5,21 @@
     <title>New Tab</title>
     <link rel="stylesheet" href="style.css">
     <style>
+        /* --- Zigzag Background for Home Screen --- */
+        body {
+            background-color: #1a1a1a;
+            background-image:  linear-gradient(135deg, #1f1f1f 25%, transparent 25%), linear-gradient(225deg, #1f1f1f 25%, transparent 25%), linear-gradient(45deg, #1f1f1f 25%, transparent 25%), linear-gradient(315deg, #1f1f1f 25%, transparent 25%);
+            background-position:  40px 0, 40px 0, 0 0, 0 0;
+            background-size: 80px 80px;
+            background-repeat: repeat;
+            animation: moveBackground 40s linear infinite;
+        }
+
+        @keyframes moveBackground {
+            from { background-position: 40px 0, 40px 0, 0 0, 0 0; }
+            to { background-position: 540px 500px, 540px 500px, 500px 500px, 500px 500px; }
+        }
+
         .home-container {
             display: flex;
             flex-direction: column;
@@ -52,11 +67,59 @@
             padding: 15px 40px;
             border-radius: 12px;
         }
+
+        /* --- Golden Cookie CSS --- */
+        .golden-cookie {
+            position: fixed;
+            width: 110px; 
+            height: 110px;
+            z-index: 9999;
+            cursor: pointer;
+            filter: drop-shadow(0 0 15px rgba(255, 215, 0, 0.8)) drop-shadow(0 0 30px rgba(255, 215, 0, 0.6));
+            animation: cookie-spin 8s linear infinite;
+        }
+
+        @keyframes cookie-spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        /* Essential overlay class so it hides the modal by default */
+        .overlay {
+            display: none; 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(0,0,0,0.9); z-index: 10000; 
+            align-items: center; justify-content: center;
+        }
+
+        .cookie-modal-box {
+            background: #1f1f1f;
+            padding: 35px;
+            border-radius: 20px;
+            width: 350px;
+            border: 2px solid #FFD700;
+            text-align: center;
+            box-shadow: 0 0 40px rgba(255, 215, 0, 0.3);
+        }
     </style>
 </head>
-<body class="chat-bg">
+<body>
     
     <div class="home-container">
+        <!-- Golden Cookie Popup -->
+        <div id="cookie-modal" class="overlay">
+            <div class="cookie-modal-box">
+                <img src="cookie.png" style="width:90px; margin-bottom:15px; animation: cookie-spin 10s linear infinite;">
+                <h2 style="color:#FFD700; margin-bottom:10px; text-shadow: 1px 1px 2px rgba(0,0,0,0.8);">You found a Golden Cookie!</h2>
+                <p style="color:#ddd; margin-bottom:20px; font-style:italic;">Amazing job!</p>
+                <div style="background:#121212; padding:15px; border-radius:10px; border:1px solid #333; margin-bottom:20px;">
+                    <p style="color:#aaa; font-size:13px; margin-bottom:5px;">Global Cookies Found:</p>
+                    <h1 id="cookie-counter" style="color:white; margin:0;">Loading...</h1>
+                </div>
+                <button onclick="document.getElementById('cookie-modal').style.display='none'" class="save-btn" style="background:#FFD700; color:#000; width:100%; font-size:16px;">Awesome!</button>
+            </div>
+        </div>
+
         <!-- Title and Splash -->
         <div class="title-area">
             <h1 class="home-title">Toothbrush</h1>
@@ -110,16 +173,75 @@
             "\"The AI wrote the code, you play the game.\"", "\"Everything is fine.\"", "\"The final boss of the school year.\"",
             "\"Your progress is our priority.\"", "\"Hardcoded for fun.\"", "\"The stash is ultimate for a reason.\"",
             "\"READ the TUTORIAL!\"", "\"Dead.\"", "\"Wow. Just... wow.\"", "\"Honorable mention: Ctrl+W.\"", "\"Wait, this actually works?.\"", "\"Testing, testing, 123\"", "\"Can someone buy me Starbucks? Please?\"",
-			"\"Never underestimate the guy who writes the splash text! Who is also the dev!\"", "\"Thanks for using Toothbrush!\"", "\"Also try 55gms.app!\"", "\"Why is Classroom Center down..?\"",
-			"\"Master, I'm hungry\"", "\"No food for you! Now be a good boy and stand in the corner.\""
+            "\"Never underestimate the guy who writes the splash text! Who is also the dev!\"", "\"Thanks for using Toothbrush!\"", "\"Also try 55gms.app!\"", "\"Why is Classroom Center down..?\"",
+            "\"Master, I'm hungry\"", "\"No food for you! Now be a good boy and stand in the corner.\""
         ]; 
 
         window.addEventListener('DOMContentLoaded', () => {
             const el = document.getElementById('splash-text');
             if (el) el.textContent = splashes[Math.floor(Math.random() * splashes.length)];
+
+            // --- GOLDEN COOKIE SPAWNER LOGIC ---
+            const spawnChance = 1; // 1 in 365 chance. Change to 1 to test it!
+            if (Math.floor(Math.random() * spawnChance) === 0) {
+                setTimeout(spawnGoldenCookie, 10);
+            }
         });
 
-// Proxy Logic (Launches in about:blank and closes home screen)
+        // The logic to fly the cookie across the screen
+        function spawnGoldenCookie() {
+            const cookie = document.createElement('img');
+            cookie.src = 'cookie.png';
+            cookie.className = 'golden-cookie';
+            document.body.appendChild(cookie);
+
+            const edge = Math.floor(Math.random() * 4); // 0:Top, 1:Right, 2:Bottom, 3:Left
+            let startX, startY, endX, endY;
+            const size = 110;
+            const vw = window.innerWidth;
+            const vh = window.innerHeight;
+
+            if (edge === 0) { 
+                startX = Math.random() * vw; startY = -size;
+                endX = vw - startX; endY = vh + size; 
+            } else if (edge === 1) { 
+                startX = vw + size; startY = Math.random() * vh;
+                endX = -size; endY = vh - startY;
+            } else if (edge === 2) { 
+                startX = Math.random() * vw; startY = vh + size;
+                endX = vw - startX; endY = -size;
+            } else { 
+                startX = -size; startY = Math.random() * vh;
+                endX = vw + size; endY = vh - startY;
+            }
+
+            const animation = cookie.animate([
+                { left: startX + 'px', top: startY + 'px' },
+                { left: endX + 'px', top: endY + 'px' }
+            ], {
+                duration: 10000,
+                easing: 'linear',
+                fill: 'forwards'
+            });
+
+            animation.onfinish = () => cookie.remove();
+
+            // When user clicks the flying cookie!
+            cookie.onclick = async () => {
+                cookie.remove(); 
+                document.getElementById('cookie-modal').style.display = 'flex'; 
+                
+                try {
+                    const res = await fetch('https://api.counterapi.dev/v1/toothbrush_site/golden_cookie/up');
+                    const data = await res.json();
+                    document.getElementById('cookie-counter').textContent = data.count.toLocaleString();
+                } catch(e) {
+                    document.getElementById('cookie-counter').textContent = "API Error";
+                }
+            };
+        }
+
+        // Proxy Logic (Launches in about:blank and closes home screen)
         document.getElementById('proxy-btn').onclick = () => {
             const win = window.open('about:blank', '_blank');
             if (!win) return alert("Pop-up Blocked! Please allow pop-ups.");
@@ -137,7 +259,7 @@
                 position: 'fixed', top: '0', left: '0', width: '100%', height: '100%',
                 border: 'none', margin: '0', padding: '0', overflow: 'hidden'
             });
-            iframe.src = "https://trigonometry.scientificsense.org/"; // You can change this proxy link if it gets blocked
+            iframe.src = "https://trigonometry.scientificsense.org/";
             win.document.body.appendChild(iframe);
 
             // Kill the original tab
